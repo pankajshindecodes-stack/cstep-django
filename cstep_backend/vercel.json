@@ -1,7 +1,7 @@
 {
     "builds": [
         {
-            "src": "cstep_backend/asgi.py",
+            "src": "cstep_backend/wsgi.py",
             "use": "@vercel/python",
             "config": {
                 "maxLambdaSize": "15mb",
@@ -12,7 +12,7 @@
     "routes": [
         {
             "src": "/(.*)",
-            "dest": "cstep_backend/asgi.py"
+            "dest": "cstep_backend/wsgi.py"
         }
     ]
 }
