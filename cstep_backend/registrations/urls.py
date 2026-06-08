@@ -3,7 +3,7 @@ from .views import RegistrationViewSet
 
 router = DefaultRouter()
 router.register(
-    r"registrations",
+    r"",
     RegistrationViewSet,
     basename="registration",
 )

@@ -35,7 +35,7 @@ Admin panel: http://localhost:8000/admin
 
 ## API Endpoints
 
-### Auth (`/api/auth/`)
+### Auth (`/auth/`)
 | Method | URL | Access | Description |
 |--------|-----|--------|-------------|
 | POST | `/register/` | Public | Register user, triggers OTP |
@@ -45,7 +45,7 @@ Admin panel: http://localhost:8000/admin
 | POST | `/resend-otp/` | Public | Resend OTP |
 | GET | `/me/` | Auth | Current user profile |
 
-### Users (`/api/auth/users/`)
+### Users (`/auth/users/`)
 | Method | URL | Access | Description |
 |--------|-----|--------|-------------|
 | GET | `/users/` | Moderator+ | List all users |
@@ -53,7 +53,7 @@ Admin panel: http://localhost:8000/admin
 | PATCH | `/users/<id>/role/` | Super Admin | Update role |
 | DELETE | `/users/<id>/deactivate/` | Super Admin | Deactivate user |
 
-### Events (`/api/events/`)
+### Events (`/events/`)
 | Method | URL | Access | Description |
 |--------|-----|--------|-------------|
 | GET | `/` | Auth | List events |
@@ -61,7 +61,7 @@ Admin panel: http://localhost:8000/admin
 | GET/PATCH | `/<id>/` | Auth / Event Admin+ | Get or update event |
 | POST | `/<id>/join/` | Auth | Log join, get stream link |
 
-### Registrations (`/api/registrations/`)
+### Registrations (`/registrations/`)
 | Method | URL | Access | Description |
 |--------|-----|--------|-------------|
 | POST | `/` | Auth | Register for event |
@@ -71,13 +71,13 @@ Admin panel: http://localhost:8000/admin
 | PATCH | `/<id>/travel-status/` | Moderator+ | Accept/Reject travel |
 | PATCH | `/<id>/translation-status/` | Moderator+ | Accept/Reject translation |
 
-### Lobby (`/api/registrations/lobby/`)
+### Lobby (`/registrations/lobby/`)
 | Method | URL | Access | Description |
 |--------|-----|--------|-------------|
 | GET | `/lobby/<event_id>/registered/` | Moderator+ | All registered users |
 | GET | `/lobby/<event_id>/proposed/` | Moderator+ | Pending participants |
 
-### Analytics (`/api/analytics/`)
+### Analytics (`/analytics/`)
 | Method | URL | Access | Description |
 |--------|-----|--------|-------------|
 | GET | `/user-summary/` | Moderator+ | User + participant counts |
@@ -96,10 +96,10 @@ Admin panel: http://localhost:8000/admin
 ---
 
 ## Auth Flow
-1. `POST /api/auth/register/` → user created, OTP sent to phone + email
-2. `POST /api/auth/verify-otp/` with `phone_number` + `otp`
-3. `POST /api/auth/verify-otp/` with `email` + `otp`
-4. `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`
+1. `POST /auth/register/` → user created, OTP sent to phone + email
+2. `POST /auth/verify-otp/` with `phone_number` + `otp`
+3. `POST /auth/verify-otp/` with `email` + `otp`
+4. `POST /auth/login/` → `{"access": "...", "refresh": "..."}`
 5. All protected routes: `Authorization: Bearer <access>`
 
 ---

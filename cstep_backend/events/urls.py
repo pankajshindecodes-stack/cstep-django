@@ -5,8 +5,8 @@ from .views import EventViewSet, BroadcastSessionViewSet
 from .webhooks import media_server_webhook
 
 router = DefaultRouter()
-router.register("events", EventViewSet, basename="event")
 router.register("broadcast-sessions", BroadcastSessionViewSet, basename="broadcast-session")
+router.register("", EventViewSet, basename="event")
 
 urlpatterns = [
     path("", include(router.urls)),

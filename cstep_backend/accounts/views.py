@@ -83,6 +83,7 @@ class AuthViewSet(viewsets.GenericViewSet):
         detail=False,
         methods=["post"],
         serializer_class=OTPVerifySerializer,
+        url_path="verify-otp",
     )
     def verify_otp(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -135,7 +136,7 @@ class AuthViewSet(viewsets.GenericViewSet):
             }
         )
 
-    @action(detail=False, methods=["post"])
+    @action(detail=False, methods=["post"], url_path="resend-otp")
     def resend_otp(self, request):
         phone = request.data.get("phone_number")
         email = request.data.get("email")
@@ -189,7 +190,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.data)
 
-    @action(detail=True, methods=["patch"])
+    @action(detail=True, methods=["patch"], url_path="role")
     def update_role(self, request, pk=None):
         user = self.get_object()
 
@@ -203,7 +204,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.data)
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["delete"])
     def deactivate(self, request, pk=None):
         user = self.get_object()
 

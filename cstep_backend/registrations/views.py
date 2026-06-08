@@ -60,6 +60,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         detail=False,
         methods=["get"],
         permission_classes=[IsAuthenticated],
+        url_path="my",
     )
     def my_registrations(self, request):
         queryset = self.get_queryset()
@@ -71,9 +72,25 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[IsModerator],
+        url_path="all",
+    )
+    def all_registrations(self, request):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(
+            queryset,
+            many=True,
+        )
+        return Response(serializer.data)
+
+    @action(
         detail=True,
         methods=["patch"],
         permission_classes=[IsModerator],
+        url_path="status",
     )
     def update_status(self, request, pk=None):
         registration = self.get_object()
@@ -92,6 +109,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=["patch"],
         permission_classes=[IsModerator],
+        url_path="travel-status",
     )
     def update_travel_status(self, request, pk=None):
         registration = self.get_object()
@@ -110,6 +128,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=["patch"],
         permission_classes=[IsModerator],
+        url_path="translation-status",
     )
     def update_translation_status(self, request, pk=None):
         registration = self.get_object()
