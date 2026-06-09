@@ -1,0 +1,1255 @@
+{
+  "info": {
+    "name": "CSTEP MVP API",
+    "_postman_id": "64c67a73-4a83-4d39-9a14-cstep-mvp-api",
+    "description": "Postman collection for the CSTEP Django backend. Set base_url to the API root, for example cstep-django.vercel.app.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "cstep-django.vercel.app"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "user_id",
+      "value": "1"
+    },
+    {
+      "key": "event_id",
+      "value": "1"
+    },
+    {
+      "key": "registration_id",
+      "value": "1"
+    },
+    {
+      "key": "broadcast_session_id",
+      "value": "1"
+    },
+    {
+      "key": "stream_key",
+      "value": ""
+    },
+    {
+      "key": "webhook_signature",
+      "value": "sha256=replace-me"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('registered', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) pm.environment.set('user_id', json.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"salutation\": \"Mr\",\n  \"first_name\": \"Test\",\n  \"middle_name\": \"\",\n  \"last_name\": \"User\",\n  \"phone_number\": \"+919999999999\",\n  \"email\": \"test.user@example.com\",\n  \"password\": \"Password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('logged in', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "if (json.tokens) {",
+                  "  pm.environment.set('access_token', json.tokens.access);",
+                  "  pm.environment.set('refresh_token', json.tokens.refresh);",
+                  "}",
+                  "if (json.user && json.user.id) pm.environment.set('user_id', json.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"test.user@example.com\",\n  \"password\": \"Password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('token refreshed', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "if (json.access) pm.environment.set('access_token', json.access);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/token/refresh/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "token",
+                "refresh",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify Phone OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.tokens) {",
+                  "  pm.environment.set('access_token', json.tokens.access);",
+                  "  pm.environment.set('refresh_token', json.tokens.refresh);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"+919999999999\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/verify-otp/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "verify-otp",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify Email OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.tokens) {",
+                  "  pm.environment.set('access_token', json.tokens.access);",
+                  "  pm.environment.set('refresh_token', json.tokens.refresh);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test.user@example.com\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/verify-otp/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "verify-otp",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Resend Phone OTP",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"+919999999999\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/resend-otp/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "resend-otp",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Me",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Updated\",\n  \"last_name\": \"User\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/me/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/users/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "users",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/users/{{user_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "users",
+                "{{user_id}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update User Role",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"MODERATOR\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/users/{{user_id}}/role/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "users",
+                "{{user_id}}",
+                "role",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Deactivate User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/users/{{user_id}}/deactivate/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "users",
+                "{{user_id}}",
+                "deactivate",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "List Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Event",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('event created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('event_id', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"CSTEP Demo Event\",\n  \"description\": \"Demo event for API testing\",\n  \"scheduled_start\": \"2026-07-01T10:00:00Z\",\n  \"scheduled_end\": \"2026-07-01T12:00:00Z\",\n  \"video_muted_by_default\": true,\n  \"pause_continue_enabled\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/events/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Event",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/{{event_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"CSTEP Demo Event Updated\",\n  \"description\": \"Updated event description\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/events/{{event_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Go Live",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/{{event_id}}/go_live/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{event_id}}",
+                "go_live",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Join Event Stream",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.viewer_session_id) pm.environment.set('viewer_session_id', json.viewer_session_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/{{event_id}}/join/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{event_id}}",
+                "join",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Heartbeat",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/{{event_id}}/heartbeat/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{event_id}}",
+                "heartbeat",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Leave Event Stream",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/{{event_id}}/leave/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{event_id}}",
+                "leave",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Event Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/{{event_id}}/analytics/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{event_id}}",
+                "analytics",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Active Viewers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/{{event_id}}/viewers/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{event_id}}",
+                "viewers",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "End Stream",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/{{event_id}}/end_stream/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{event_id}}",
+                "end_stream",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Event",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/{{event_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{event_id}}",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Broadcast Sessions",
+      "item": [
+        {
+          "name": "List Broadcast Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/broadcast-sessions/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "broadcast-sessions",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Broadcast Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('broadcast session created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('broadcast_session_id', json.id);",
+                  "if (json.stream_key) pm.environment.set('stream_key', json.stream_key);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": {{event_id}},\n  \"broadcaster\": {{user_id}},\n  \"ingest_url\": \"rtmp://localhost/live\",\n  \"protocol\": \"RTMP\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/events/broadcast-sessions/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "broadcast-sessions",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Broadcast Session",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/broadcast-sessions/{{broadcast_session_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "broadcast-sessions",
+                "{{broadcast_session_id}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Regenerate Stream Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.stream_key) pm.environment.set('stream_key', json.stream_key);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/broadcast-sessions/{{broadcast_session_id}}/regenerate_key/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "broadcast-sessions",
+                "{{broadcast_session_id}}",
+                "regenerate_key",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Broadcast Session",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/events/broadcast-sessions/{{broadcast_session_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "broadcast-sessions",
+                "{{broadcast_session_id}}",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Registrations",
+      "item": [
+        {
+          "name": "Create Registration",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('registration created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('registration_id', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": {{event_id}},\n  \"participation_date\": \"2026-07-01\",\n  \"participation_time\": \"FULL_DAY\",\n  \"food_preference\": \"VEG\",\n  \"travel_arrangement\": \"SELF_ARRANGED\",\n  \"medical_support\": \"OTHER\",\n  \"translation_language\": \"HINDI\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/registrations/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "registrations",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "My Registrations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/registrations/my/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "registrations",
+                "my",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "All Registrations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/registrations/all/?event_id={{event_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "registrations",
+                "all",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "event_id",
+                  "value": "{{event_id}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Registration",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/registrations/{{registration_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "registrations",
+                "{{registration_id}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Registration Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACCEPTED\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/registrations/{{registration_id}}/status/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "registrations",
+                "{{registration_id}}",
+                "status",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Travel Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"travel_status\": \"ACCEPTED\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/registrations/{{registration_id}}/travel-status/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "registrations",
+                "{{registration_id}}",
+                "travel-status",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Translation Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"translation_status\": \"ACCEPTED\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/registrations/{{registration_id}}/translation-status/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "registrations",
+                "{{registration_id}}",
+                "translation-status",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lobby Registered",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/registrations/lobby/{{event_id}}/registered/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "registrations",
+                "lobby",
+                "{{event_id}}",
+                "registered",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lobby Proposed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/registrations/lobby/{{event_id}}/proposed/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "registrations",
+                "lobby",
+                "{{event_id}}",
+                "proposed",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Registration",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/registrations/{{registration_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "registrations",
+                "{{registration_id}}",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "User Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/analytics/user-summary/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "user-summary",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Participation Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/analytics/{{event_id}}/participation/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "analytics",
+                "{{event_id}}",
+                "participation",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Stream Started",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Webhook-Signature",
+                "value": "{{webhook_signature}}",
+                "description": "Required only when DEBUG=False. HMAC-SHA256 over the raw request body, formatted as sha256=<hex>."
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"stream.started\",\n  \"stream_key\": \"{{stream_key}}\",\n  \"playback_url\": \"https://cdn.example.com/live/demo.m3u8\",\n  \"timestamp\": \"2026-07-01T10:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/events/webhooks/stream/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "webhooks",
+                "stream",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Stream Ended",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Webhook-Signature",
+                "value": "{{webhook_signature}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"stream.ended\",\n  \"stream_key\": \"{{stream_key}}\",\n  \"timestamp\": \"2026-07-01T12:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/events/webhooks/stream/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "webhooks",
+                "stream",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Stream Error",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Webhook-Signature",
+                "value": "{{webhook_signature}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"stream.error\",\n  \"stream_key\": \"{{stream_key}}\",\n  \"timestamp\": \"2026-07-01T10:30:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/events/webhooks/stream/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "webhooks",
+                "stream",
+                ""
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
