@@ -3,13 +3,19 @@ from django.conf import settings
 from events.models import Event
 
 class FoodPreference(models.TextChoices):
-    VEG = "VEG", "Veg"
+    VEG = "VEG", "Vegetarian"
     JAIN = "JAIN", "Jain"
     VEGAN = "VEGAN", "Vegan"
+    SATVIK = "SATVIK", "Satvik"
+    EGG_VEG = "EGG_VEG", "Egg Vegetarian"
     PESCETARIAN = "PESCETARIAN", "Pescetarian"
-    NON_VEG_CHICKEN = "NON_VEG_CHICKEN", "Non Veg (Chicken only)"
+    GLUTEN_FREE = "GLUTEN_FREE", "Gluten Free"
+    LACTOSE_FREE = "LACTOSE_FREE", "Lactose Free"
+    DIABETIC_FRIENDLY = "DIABETIC_FRIENDLY", "Diabetic Friendly"
+    NUT_ALLERGY = "NUT_ALLERGY", "Nut Allergy"
+    HALAL = "HALAL", "Halal"
+    NON_VEG_CHICKEN = "NON_VEG_CHICKEN", "Non Veg (Chicken Only)"
     NON_VEG_ANY = "NON_VEG_ANY", "Non Veg (Any)"
-    NO_PREFERENCE = "NO_PREFERENCE", "No Preference"
 
 class TravelArrangement(models.TextChoices):
     FLIGHT_TAXI_HOTEL = "FLIGHT_TAXI_HOTEL", "Flight + Taxi + Hotel"
@@ -21,12 +27,16 @@ class TravelArrangement(models.TextChoices):
     SELF_ARRANGED = "SELF_ARRANGED", "Self Arranged"
 
 class MedicalSupport(models.TextChoices):
-    WHEEL_CHAIR = "WHEEL_CHAIR", "Wheel Chair"
-    ATTENDER = "ATTENDER", "Attender"
-    BLIND_COMPANION = "BLIND_COMPANION", "Blind Companion"
+    WHEEL_CHAIR = "WHEEL_CHAIR", "Wheelchair Access"
+    MOBILITY_ASSISTANCE = "MOBILITY_ASSISTANCE", "Mobility Assistance"
+    ATTENDER = "ATTENDER", "Personal Attender"
+    BLIND_COMPANION = "BLIND_COMPANION", "Blind Companion / Guide"
+    HEARING_IMPAIRED = "HEARING_IMPAIRED", "Hearing Impaired Support"
     SIGN_LANGUAGE_INTERPRETER = "SIGN_LANGUAGE_INTERPRETER", "Sign Language Interpreter"
-    HEARING_ASSISTANCE = "HEARING_ASSISTANCE", "Hearing Assistance"
-    OTHER = "OTHER", "Other"
+    OXYGEN_SUPPORT = "OXYGEN_SUPPORT", "Oxygen Support"
+    GUIDE_DOG = "GUIDE_DOG", "Guide Dog Accommodation"
+    RESERVED_SEATING = "RESERVED_SEATING", "Reserved Seating (Medical)"
+    OTHER_MEDICAL = "OTHER_MEDICAL", "Other Medical Requirement"
 
 class TranslationLanguage(models.TextChoices):
     HINDI = "HINDI", "Hindi"
@@ -36,11 +46,12 @@ class TranslationLanguage(models.TextChoices):
     TELUGU = "TELUGU", "Telugu"
     MALAYALAM = "MALAYALAM", "Malayalam"
     PUNJABI = "PUNJABI", "Punjabi"
+    BENGALI = "BENGALI", "Bengali"
     MARATHI = "MARATHI", "Marathi"
     GUJARATI = "GUJARATI", "Gujarati"
-    BENGALI = "BENGALI", "Bengali"
     ODIA = "ODIA", "Odia"
     ASSAMESE = "ASSAMESE", "Assamese"
+    URDU = "URDU", "Urdu"
 
 class ParticipationTime(models.TextChoices):
     HALF_DAY = "HALF_DAY", "Half Day"
@@ -53,11 +64,37 @@ class RegistrationStatus(models.TextChoices):
     HELD = "HELD", "Held"
     REJECTED = "REJECTED", "Rejected"
 
-
 class ApprovalStatus(models.TextChoices):
     PENDING = "PENDING", "Pending"
     ACCEPTED = "ACCEPTED", "Accepted"
     REJECTED = "REJECTED", "Rejected"
+
+class ParticipationDate(models.Model):
+    registration = models.ForeignKey(
+        "Registration",
+        on_delete=models.CASCADE,
+        related_name="participation_dates",
+    )
+    date = models.DateField()
+    participation_time = models.CharField(
+        max_length=20,
+        choices=ParticipationTime.choices,
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["registration", "date"],
+                name="unique_registration_date",
+            )
+        ]
+        ordering = ["date"]
+
+    def __str__(self):
+        return f"{self.registration} → {self.date}"
+
 
 class Registration(models.Model):
     user = models.ForeignKey(
@@ -69,14 +106,6 @@ class Registration(models.Model):
         Event,
         on_delete=models.CASCADE,
         related_name="registrations",
-    )
-
-    participation_date = models.DateField()
-    participation_time = models.CharField(
-        max_length=20,
-        choices=ParticipationTime.choices,
-        null=True,
-        blank=True,
     )
 
     food_preference = models.CharField(

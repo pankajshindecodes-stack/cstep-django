@@ -42,9 +42,11 @@ def _verify_webhook_signature(request) -> bool:
         return False
 
     expected = hmac.new(
-        secret.encode(), request.body, hashlib.sha256
+        key=secret.encode(),
+        msg=request.body,
+        digestmod=hashlib.sha256,
     ).hexdigest()
-    received = signature_header[7:]  # strip "sha256="
+    received = signature_header[7:]
 
     return hmac.compare_digest(expected, received)
 

@@ -6,28 +6,31 @@ from .models import User
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    model = User
+    ordering = ("-created_at",)
 
     list_display = (
+        "id",
         "email",
         "phone_number",
         "first_name",
         "last_name",
         "role",
-        "is_staff",
-        "is_active",
-        "email_verified",
+        "gender",
         "phone_verified",
+        "email_verified",
+        "is_active",
+        "is_staff",
+        "created_at",
     )
 
     list_filter = (
         "role",
         "gender",
-        "is_staff",
-        "is_active",
-        "is_superuser",
-        "email_verified",
         "phone_verified",
+        "email_verified",
+        "is_active",
+        "is_staff",
+        "is_superuser",
     )
 
     search_fields = (
@@ -38,12 +41,15 @@ class UserAdmin(BaseUserAdmin):
         "last_name",
     )
 
-    ordering = ("email",)
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+        "last_login",
+    )
 
     fieldsets = (
-        (None, {"fields": ("email", "phone_number", "password")}),
         (
-            "Personal info",
+            "Personal Information",
             {
                 "fields": (
                     "salutation",
@@ -55,19 +61,19 @@ class UserAdmin(BaseUserAdmin):
             },
         ),
         (
-            "Role and verification",
+            "Contact Information",
             {
                 "fields": (
-                    "role",
-                    "email_verified",
-                    "phone_verified",
+                    "email",
+                    "phone_number",
                 )
             },
         ),
         (
-            "Permissions",
+            "Role & Permissions",
             {
                 "fields": (
+                    "role",
                     "is_active",
                     "is_staff",
                     "is_superuser",
@@ -76,7 +82,33 @@ class UserAdmin(BaseUserAdmin):
                 )
             },
         ),
-        ("Important dates", {"fields": ("last_login", "created_at", "updated_at")}),
+        (
+            "Verification",
+            {
+                "fields": (
+                    "phone_verified",
+                    "email_verified",
+                )
+            },
+        ),
+        (
+            "Authentication",
+            {
+                "fields": (
+                    "password",
+                    "last_login",
+                )
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                )
+            },
+        ),
     )
 
     add_fieldsets = (
@@ -85,18 +117,19 @@ class UserAdmin(BaseUserAdmin):
             {
                 "classes": ("wide",),
                 "fields": (
+                    "salutation",
+                    "first_name",
+                    "middle_name",
+                    "last_name",
                     "email",
                     "phone_number",
-                    "first_name",
-                    "last_name",
+                    "gender",
+                    "role",
                     "password1",
                     "password2",
-                    "role",
-                    "is_staff",
                     "is_active",
+                    "is_staff",
                 ),
             },
         ),
     )
-
-    readonly_fields = ("created_at", "updated_at", "last_login")

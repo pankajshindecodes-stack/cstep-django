@@ -12,34 +12,10 @@ class BroadcastSessionInline(admin.StackedInline):
     extra = 0
     readonly_fields = (
         "stream_key",
+        "created_at",
         "started_at",
         "ended_at",
-        "created_at",
     )
-
-
-class ViewerSessionInline(admin.TabularInline):
-    model = ViewerSession
-    extra = 0
-    readonly_fields = (
-        "joined_at",
-        "left_at",
-        "last_heartbeat",
-        "watch_duration_seconds",
-    )
-    can_delete = False
-    show_change_link = True
-
-
-class EventLoginInline(admin.TabularInline):
-    model = EventLogin
-    extra = 0
-    readonly_fields = (
-        "logged_in_at",
-        "ip_address",
-    )
-    can_delete = False
-    show_change_link = True
 
 
 @admin.register(Event)
@@ -51,6 +27,8 @@ class EventAdmin(admin.ModelAdmin):
         "created_by",
         "scheduled_start",
         "scheduled_end",
+        "stream_start_time",
+        "stream_end_time",
         "created_at",
     )
 
@@ -64,25 +42,73 @@ class EventAdmin(admin.ModelAdmin):
     search_fields = (
         "title",
         "description",
-        "created_by__email",
         "created_by__first_name",
         "created_by__last_name",
+        "created_by__email",
     )
 
     readonly_fields = (
-        "stream_start_time",
-        "stream_end_time",
         "created_at",
         "updated_at",
+        "stream_start_time",
+        "stream_end_time",
     )
 
-    inlines = [
-        BroadcastSessionInline,
-        ViewerSessionInline,
-        EventLoginInline,
-    ]
+    autocomplete_fields = ("created_by",)
 
-    date_hierarchy = "created_at"
+    inlines = [BroadcastSessionInline]
+
+    fieldsets = (
+        (
+            "Basic Information",
+            {
+                "fields": (
+                    "title",
+                    "description",
+                    "status",
+                    "created_by",
+                )
+            },
+        ),
+        (
+            "Streaming Configuration",
+            {
+                "fields": (
+                    "video_muted_by_default",
+                    "pause_continue_enabled",
+                    "scheduled_start",
+                    "scheduled_end",
+                )
+            },
+        ),
+        (
+            "Streaming URLs",
+            {
+                "fields": (
+                    "playback_url",
+                    "recording_url",
+                )
+            },
+        ),
+        (
+            "Stream Runtime",
+            {
+                "fields": (
+                    "stream_start_time",
+                    "stream_end_time",
+                )
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                )
+            },
+        ),
+    )
 
 
 @admin.register(BroadcastSession)
@@ -95,6 +121,7 @@ class BroadcastSessionAdmin(admin.ModelAdmin):
         "is_active",
         "started_at",
         "ended_at",
+        "created_at",
     )
 
     list_filter = (
@@ -105,15 +132,60 @@ class BroadcastSessionAdmin(admin.ModelAdmin):
 
     search_fields = (
         "event__title",
+        "broadcaster__first_name",
+        "broadcaster__last_name",
         "broadcaster__email",
         "stream_key",
     )
 
     readonly_fields = (
         "stream_key",
+        "created_at",
         "started_at",
         "ended_at",
-        "created_at",
+    )
+
+    autocomplete_fields = (
+        "event",
+        "broadcaster",
+    )
+
+    fieldsets = (
+        (
+            "Event",
+            {
+                "fields": (
+                    "event",
+                    "broadcaster",
+                )
+            },
+        ),
+        (
+            "Ingest Configuration",
+            {
+                "fields": (
+                    "protocol",
+                    "ingest_url",
+                    "stream_key",
+                )
+            },
+        ),
+        (
+            "Session Status",
+            {
+                "fields": (
+                    "is_active",
+                    "started_at",
+                    "ended_at",
+                )
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": ("created_at",)
+            },
+        ),
     )
 
 
@@ -125,20 +197,22 @@ class ViewerSessionAdmin(admin.ModelAdmin):
         "event",
         "joined_at",
         "left_at",
-        "watch_duration_seconds",
         "is_active",
+        "watch_duration_seconds",
     )
 
     list_filter = (
         "joined_at",
+        "left_at",
         "event",
     )
 
     search_fields = (
-        "user__email",
         "user__first_name",
         "user__last_name",
+        "user__email",
         "event__title",
+        "ip_address",
     )
 
     readonly_fields = (
@@ -146,7 +220,10 @@ class ViewerSessionAdmin(admin.ModelAdmin):
         "last_heartbeat",
     )
 
-    date_hierarchy = "joined_at"
+    autocomplete_fields = (
+        "user",
+        "event",
+    )
 
 
 @admin.register(EventLogin)
@@ -165,9 +242,9 @@ class EventLoginAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
-        "user__email",
         "user__first_name",
         "user__last_name",
+        "user__email",
         "event__title",
         "ip_address",
     )
@@ -176,4 +253,7 @@ class EventLoginAdmin(admin.ModelAdmin):
         "logged_in_at",
     )
 
-    date_hierarchy = "logged_in_at"
+    autocomplete_fields = (
+        "user",
+        "event",
+    )

@@ -1,11 +1,16 @@
 from rest_framework import serializers
-from .models import Registration
+from .models import Registration, ParticipationDate, ApprovalStatus
+
+
+class ParticipationDateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ParticipationDate
+        fields = ["id", "date", "participation_time"]
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
-    user = serializers.HiddenField(
-        default=serializers.CurrentUserDefault()
-    )
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    participation_dates = ParticipationDateSerializer(many=True)
 
     class Meta:
         model = Registration
@@ -13,8 +18,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
             "id",
             "user",
             "event",
-            "participation_date",
-            "participation_time",
+            "participation_dates",
             "food_preference",
 
             # Travel
@@ -42,28 +46,42 @@ class RegistrationSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
-    def validate(self, attrs):
-        """
-        Automatically set statuses when requests are submitted.
-        """
+    def validate_participation_dates(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one participation date is required.")
+        return value
 
+    def validate(self, attrs):
         if attrs.get("travel_arrangement"):
-            attrs.setdefault(
-                "travel_status",
-                Registration.ApprovalStatus.PENDING
-                if hasattr(Registration, "ApprovalStatus")
-                else "PENDING"
-            )
+            attrs["travel_status"] = ApprovalStatus.PENDING
 
         if attrs.get("translation_language"):
-            attrs.setdefault(
-                "translation_status",
-                Registration.ApprovalStatus.PENDING
-                if hasattr(Registration, "ApprovalStatus")
-                else "PENDING"
-            )
+            attrs["translation_status"] = ApprovalStatus.PENDING
 
         return attrs
+
+    def create(self, validated_data):
+        dates_data = validated_data.pop("participation_dates")
+        registration = Registration.objects.create(**validated_data)
+        ParticipationDate.objects.bulk_create([
+            ParticipationDate(registration=registration, **d) for d in dates_data
+        ])
+        return registration
+
+    def update(self, instance, validated_data):
+        dates_data = validated_data.pop("participation_dates", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if dates_data is not None:
+            instance.participation_dates.all().delete()
+            ParticipationDate.objects.bulk_create([
+                ParticipationDate(registration=instance, **d) for d in dates_data
+            ])
+
+        return instance
+
 
 class RegistrationStatusSerializer(serializers.ModelSerializer):
     class Meta:
@@ -82,16 +100,12 @@ class TranslationStatusSerializer(serializers.ModelSerializer):
         model = Registration
         fields = ["translation_status"]
 
+
 class LobbyRegistrationSerializer(serializers.ModelSerializer):
     user_name = serializers.SerializerMethodField()
-    phone_number = serializers.CharField(
-        source="user.phone_number",
-        read_only=True,
-    )
-    email = serializers.EmailField(
-        source="user.email",
-        read_only=True,
-    )
+    phone_number = serializers.CharField(source="user.phone_number", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
+    participation_dates = ParticipationDateSerializer(many=True, read_only=True)
 
     class Meta:
         model = Registration
@@ -102,8 +116,7 @@ class LobbyRegistrationSerializer(serializers.ModelSerializer):
             "phone_number",
             "email",
 
-            "participation_date",
-            "participation_time",
+            "participation_dates",
             "food_preference",
 
             "travel_arrangement",
@@ -118,6 +131,4 @@ class LobbyRegistrationSerializer(serializers.ModelSerializer):
         ]
 
     def get_user_name(self, obj):
-        return (
-            f"{obj.user.first_name} {obj.user.last_name}"
-        ).strip()
+        return f"{obj.user.first_name} {obj.user.last_name}".strip()

@@ -1,5 +1,10 @@
 from django.contrib import admin
-from .models import Registration
+from .models import Registration, ParticipationDate
+
+
+class ParticipationDateInline(admin.TabularInline):
+    model = ParticipationDate
+    extra = 0
 
 
 @admin.register(Registration)
@@ -8,17 +13,17 @@ class RegistrationAdmin(admin.ModelAdmin):
         "id",
         "user",
         "event",
-        "participation_date",
-        "participation_time",
         "status",
+        "food_preference",
+        "travel_arrangement",
         "travel_status",
+        "translation_language",
         "translation_status",
         "created_at",
     )
 
     list_filter = (
         "status",
-        "participation_time",
         "food_preference",
         "travel_arrangement",
         "travel_status",
@@ -29,9 +34,10 @@ class RegistrationAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
-        "user__email",
         "user__first_name",
         "user__last_name",
+        "user__email",
+        "user__phone_number",
         "event__title",
     )
 
@@ -45,25 +51,16 @@ class RegistrationAdmin(admin.ModelAdmin):
         "event",
     )
 
-    date_hierarchy = "created_at"
+    inlines = [ParticipationDateInline]
 
     fieldsets = (
         (
-            "Basic Information",
+            "Registration Details",
             {
                 "fields": (
                     "user",
                     "event",
                     "status",
-                )
-            },
-        ),
-        (
-            "Participation",
-            {
-                "fields": (
-                    "participation_date",
-                    "participation_time",
                 )
             },
         ),
@@ -102,7 +99,7 @@ class RegistrationAdmin(admin.ModelAdmin):
             },
         ),
         (
-            "Audit Information",
+            "Timestamps",
             {
                 "fields": (
                     "created_at",
@@ -112,20 +109,28 @@ class RegistrationAdmin(admin.ModelAdmin):
         ),
     )
 
-    actions = [
-        "mark_accepted",
-        "mark_held",
-        "mark_rejected",
-    ]
 
-    @admin.action(description="Mark selected registrations as Accepted")
-    def mark_accepted(self, request, queryset):
-        queryset.update(status="ACCEPTED")
+@admin.register(ParticipationDate)
+class ParticipationDateAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "registration",
+        "date",
+        "participation_time",
+    )
 
-    @admin.action(description="Mark selected registrations as Held")
-    def mark_held(self, request, queryset):
-        queryset.update(status="HELD")
+    list_filter = (
+        "participation_time",
+        "date",
+    )
 
-    @admin.action(description="Mark selected registrations as Rejected")
-    def mark_rejected(self, request, queryset):
-        queryset.update(status="REJECTED")
+    search_fields = (
+        "registration__user__first_name",
+        "registration__user__last_name",
+        "registration__user__email",
+        "registration__event__title",
+    )
+
+    autocomplete_fields = (
+        "registration",
+    )
