@@ -57,7 +57,7 @@ class AuthViewSet(viewsets.GenericViewSet):
         methods=["post"],
         serializer_class=RegisterSerializer,
     )
-    def register(self, request):
+    def sign_up(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
