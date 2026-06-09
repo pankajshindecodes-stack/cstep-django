@@ -115,7 +115,7 @@ SIMPLE_JWT = {
 }
 
 # ─── Redis ────────────────────────────────────────────────────────────────────
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+REDIS_URL = os.getenv("upstashkvredis_REDIS_URL", "redis://localhost:6379")
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
