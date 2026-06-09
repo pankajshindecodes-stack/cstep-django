@@ -35,6 +35,8 @@ Admin panel: http://localhost:8000/admin
 
 ## API Endpoints
 
+User-wise workflow diagrams are available in [`docs/user-wise-workflow.md`](docs/user-wise-workflow.md).
+
 ### Auth (`/auth/`)
 | Method | URL | Access | Description |
 |--------|-----|--------|-------------|
