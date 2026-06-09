@@ -52,6 +52,31 @@ class AuthViewSet(viewsets.GenericViewSet):
                 },
             }
         )
+    
+    @action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[IsAuthenticated]
+    )
+    def logout(self, request):
+        refresh_token = request.data.get("refresh")
+
+        if not refresh_token:
+            return Response(
+                {"message": "Refresh token is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            RefreshToken(refresh_token).blacklist()
+        except Exception:
+            return Response(
+                {"message": "Invalid or expired token"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response({"message": "Logged out successfully"})
+
     @action(
         detail=False,
         methods=["post"],
