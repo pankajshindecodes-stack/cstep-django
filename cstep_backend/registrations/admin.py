@@ -14,6 +14,7 @@ class RegistrationAdmin(admin.ModelAdmin):
         "user",
         "event",
         "status",
+        "participation_time",
         "food_preference",
         "travel_arrangement",
         "travel_status",
@@ -26,6 +27,7 @@ class RegistrationAdmin(admin.ModelAdmin):
         "status",
         "food_preference",
         "travel_arrangement",
+        "participation_time",
         "travel_status",
         "medical_support",
         "translation_language",
@@ -61,6 +63,7 @@ class RegistrationAdmin(admin.ModelAdmin):
                     "user",
                     "event",
                     "status",
+                    "participation_time",
                 )
             },
         ),
@@ -116,11 +119,9 @@ class ParticipationDateAdmin(admin.ModelAdmin):
         "id",
         "registration",
         "date",
-        "participation_time",
     )
 
     list_filter = (
-        "participation_time",
         "date",
     )
 

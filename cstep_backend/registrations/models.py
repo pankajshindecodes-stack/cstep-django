@@ -76,12 +76,7 @@ class ParticipationDate(models.Model):
         related_name="participation_dates",
     )
     date = models.DateField()
-    participation_time = models.CharField(
-        max_length=20,
-        choices=ParticipationTime.choices,
-        null=True,
-        blank=True,
-    )
+    
 
     class Meta:
         constraints = [
@@ -101,6 +96,12 @@ class Registration(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="registrations",
+    )
+    participation_time = models.CharField(
+        max_length=20,
+        choices=ParticipationTime.choices,
+        null=True,
+        blank=True,
     )
     event = models.ForeignKey(
         Event,
