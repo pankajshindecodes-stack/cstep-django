@@ -14,6 +14,7 @@ from .serializers import (
     UserRoleUpdateSerializer,
     LoginSerializer
 )
+from .models import User
 from .permissions import IsModerator, IsSuperAdmin
 from .utils import (
     generate_otp,
@@ -23,9 +24,6 @@ from .utils import (
     phone_otp_key,
     email_otp_key,
 )
-
-User = get_user_model()
-
 
 class AuthViewSet(viewsets.GenericViewSet):
     permission_classes = [AllowAny]
@@ -65,16 +63,16 @@ class AuthViewSet(viewsets.GenericViewSet):
 
         user = serializer.save()
 
-        phone_otp = generate_otp()
-        email_otp = generate_otp()
+        phone_otp = "000000"
+        email_otp = "000000"
 
         set_otp(phone_otp_key(user.phone_number), phone_otp)
         set_otp(email_otp_key(user.email), email_otp)
 
         return Response(
             {
-                "message": "Registration successful",
-                "data": UserSerializer(user).data,
+                "message": "Registration successful. OTP sent.",
+                "user": UserSerializer(user).data,
             },
             status=status.HTTP_201_CREATED,
         )
@@ -96,22 +94,14 @@ class AuthViewSet(viewsets.GenericViewSet):
             user = User.objects.filter(
                 phone_number=data["phone_number"]
             ).first()
-            field = "phone_verified"
+            verify_field = "phone_verified"
 
         else:
             key = email_otp_key(data["email"])
             user = User.objects.filter(
                 email=data["email"]
             ).first()
-            field = "email_verified"
-
-        otp = get_otp(key)
-
-        if not otp or otp != data["otp"]:
-            return Response(
-                {"message": "Invalid or expired OTP"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            verify_field = "email_verified"
 
         if not user:
             return Response(
@@ -119,8 +109,16 @@ class AuthViewSet(viewsets.GenericViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        setattr(user, field, True)
-        user.save(update_fields=[field])
+        saved_otp = get_otp(key)
+
+        if saved_otp != data["otp"]:
+            return Response(
+                {"message": "Invalid or expired OTP"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        setattr(user, verify_field, True)
+        user.save(update_fields=[verify_field])
 
         delete_otp(key)
 
@@ -128,7 +126,8 @@ class AuthViewSet(viewsets.GenericViewSet):
 
         return Response(
             {
-                "message": "OTP verified",
+                "message": f"{verify_field} verified successfully",
+                "user": UserSerializer(user).data,
                 "tokens": {
                     "refresh": str(refresh),
                     "access": str(refresh.access_token),
@@ -136,25 +135,61 @@ class AuthViewSet(viewsets.GenericViewSet):
             }
         )
 
-    @action(detail=False, methods=["post"], url_path="resend-otp")
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="resend-otp",
+    )
     def resend_otp(self, request):
         phone = request.data.get("phone_number")
         email = request.data.get("email")
 
-        if phone:
-            set_otp(phone_otp_key(phone), generate_otp())
-
-        elif email:
-            set_otp(email_otp_key(email), generate_otp())
-
-        else:
+        if not phone and not email:
             return Response(
                 {"message": "phone_number or email required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response({"message": "OTP sent successfully"})
-    
+        if phone and email:
+            return Response(
+                {"message": "Provide only one field"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if phone:
+            user = User.objects.filter(
+                phone_number=phone
+            ).first()
+
+            if not user:
+                return Response(
+                    {"message": "User not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            otp = "000000"  # testing
+            set_otp(phone_otp_key(phone), otp)
+
+        else:
+            user = User.objects.filter(
+                email=email
+            ).first()
+
+            if not user:
+                return Response(
+                    {"message": "User not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            otp = "000000"  # testing
+            set_otp(email_otp_key(email), otp)
+
+        return Response(
+            {
+                "message": "OTP resent successfully",
+            }
+        )
+
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
 

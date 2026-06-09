@@ -2,8 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
-User = get_user_model()
-
+from .models import User
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -30,10 +29,10 @@ class LoginSerializer(serializers.Serializer):
         username = attrs["username"]
         password = attrs["password"]
 
-        user = User.objects.filter(email=username).first()
-
-        if not user:
-            user = User.objects.filter(phone_number=username).first()
+        user = (
+            User.objects.filter(email=username).first()
+            or User.objects.filter(phone_number=username).first()
+        )
 
         if not user or not user.check_password(password):
             raise serializers.ValidationError(
@@ -45,18 +44,34 @@ class LoginSerializer(serializers.Serializer):
                 "User account is inactive"
             )
 
+        if not user.email_verified and not user.phone_verified:
+            raise serializers.ValidationError(
+                "Please verify your email or phone number first."
+            )
+
         attrs["user"] = user
         return attrs
     
 class OTPVerifySerializer(serializers.Serializer):
-    phone_number = serializers.CharField(required=False, allow_blank=True)
-    email = serializers.EmailField(required=False, allow_blank=True)
+    phone_number = serializers.CharField(required=False)
+    email = serializers.EmailField(required=False)
     otp = serializers.CharField(max_length=6)
 
-    def validate(self, data):
-        if not data.get("phone_number") and not data.get("email"):
-            raise serializers.ValidationError("Provide phone_number or email")
-        return data
+    def validate(self, attrs):
+        phone = attrs.get("phone_number")
+        email = attrs.get("email")
+
+        if not phone and not email:
+            raise serializers.ValidationError(
+                "Provide either phone_number or email."
+            )
+
+        if phone and email:
+            raise serializers.ValidationError(
+                "Provide only one of phone_number or email."
+            )
+
+        return attrs
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
