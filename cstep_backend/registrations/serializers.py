@@ -1,11 +1,12 @@
 from rest_framework import serializers
 from .models import Registration, ParticipationDate, ApprovalStatus
+from rest_framework.validators import UniqueTogetherValidator
 
 
 class ParticipationDateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ParticipationDate
-        fields = ["id", "date", "participation_time"]
+        fields = ["id", "date"]
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
@@ -19,6 +20,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
             "user",
             "event",
             "participation_dates",
+            "participation_time", 
             "food_preference",
 
             # Travel
@@ -44,6 +46,13 @@ class RegistrationSerializer(serializers.ModelSerializer):
             "translation_status",
             "created_at",
             "updated_at",
+        ]
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Registration.objects.all(),
+                fields=["user", "event"],
+                message="You have already registered for this event."
+            )
         ]
 
     def validate_participation_dates(self, value):
@@ -117,6 +126,7 @@ class LobbyRegistrationSerializer(serializers.ModelSerializer):
             "email",
 
             "participation_dates",
+            "participation_time", 
             "food_preference",
 
             "travel_arrangement",
