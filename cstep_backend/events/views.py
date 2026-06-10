@@ -20,6 +20,7 @@ from .serializers import (
     ViewerSessionSerializer,
     ViewerJoinSerializer,
     EventAnalyticsSerializer,
+    UpcomingEventSerializer,
 )
 from .permissions import (
     IsEventAdminOrAbove,
@@ -75,33 +76,31 @@ class EventViewSet(viewsets.ModelViewSet):
     # ------------------------------------------------------------------
     # Stream lifecycle
     # ------------------------------------------------------------------
-    # @action(
-    #     detail=False,
-    #     methods=["get"],
-    #     permission_classes=[AllowAny],
-    #     serializer_class=UpcomingEventSerializer
-    # )
-    # def upcoming(self, request):
-    #     user_registered = Registration.objects.filter(
-    #         event=OuterRef("pk"),
-    #         user=request.user,
-    #     )
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+        serializer_class=UpcomingEventSerializer,
+    )
+    def upcoming(self, request):
+        queryset = Event.objects.filter(
+            scheduled_start__gte=timezone.now(),
+        ).order_by("scheduled_start")
 
-    #     queryset = (
-    #         Event.objects.filter(
-    #             scheduled_start__gt=timezone.now(),
-    #         )
-    #         .annotate(is_registered=Exists(user_registered))
-    #         .order_by("scheduled_start")
-    #     )
+        if request.user.is_authenticated:
+            user_registered = Registration.objects.filter(
+                event=OuterRef("pk"),
+                user=request.user,
+            )
+            queryset = queryset.annotate(is_registered=Exists(user_registered))
 
-    #     page = self.paginate_queryset(queryset)
-    #     if page is not None:
-    #         serializer = self.get_serializer(page, many=True)
-    #         return self.get_paginated_response(serializer.data)
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            
+            serializer = self.serializer_class(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
-    #     serializer = self.get_serializer(queryset, many=True)
-    #     return Response(serializer.data)
+        return Response(self.serializer_class(queryset, many=True).data)
     
     @action(detail=True, methods=["post"], url_path="go_live")
     def go_live(self, request, pk=None):

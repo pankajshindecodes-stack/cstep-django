@@ -64,9 +64,11 @@ class EventCreateUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = [
+            "id",
             "title", "description", "scheduled_start", "scheduled_end",
             "video_muted_by_default", "pause_continue_enabled",
         ]
+        read_only_fields = ["id"]
 
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
@@ -195,22 +197,10 @@ class EventAnalyticsSerializer(serializers.Serializer):
     peak_viewers = serializers.IntegerField()
     avg_watch_duration_minutes = serializers.FloatField()
     stream_duration_minutes = serializers.FloatField(allow_null=True)
-    
-    class UpcomingEventSerializer(serializers.ModelSerializer):
-        is_registered = serializers.SerializerMethodField()
 
-        class Meta:
-            model = Event
-            fields = [
-                "id",
-                "title",
-                "description",
-                "status",
-                "scheduled_start",
-                "scheduled_end",
-                "playback_url",
-                "is_registered",
-            ]
+class UpcomingEventSerializer(serializers.ModelSerializer):
+    is_registered = serializers.BooleanField(read_only=True)
 
-        def get_is_registered(self, obj):
-            return getattr(obj, "is_registered", False)
+    class Meta:
+        model = Event
+        fields = '__all__'
