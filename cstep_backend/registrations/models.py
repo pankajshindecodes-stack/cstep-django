@@ -69,6 +69,13 @@ class ApprovalStatus(models.TextChoices):
     ACCEPTED = "ACCEPTED", "Accepted"
     REJECTED = "REJECTED", "Rejected"
 
+class AttendanceMode(models.TextChoices):
+    PHYSICAL = "PHYSICAL", "Physical (On-site)"
+    VIRTUAL = "VIRTUAL", "Virtual (Online)"
+    HYBRID = "HYBRID", "Hybrid"
+    RECORDED = "RECORDED", "Recorded Session Only"
+    UNDECIDED = "UNDECIDED", "Not Decided Yet"
+
 class ParticipationDate(models.Model):
     registration = models.ForeignKey(
         "Registration",
@@ -114,6 +121,12 @@ class Registration(models.Model):
         choices=FoodPreference.choices,
         null=True,
         blank=True,
+    )
+
+    attendance_mode = models.CharField(
+        max_length=10,
+        choices=AttendanceMode.choices,
+        default=AttendanceMode.UNDECIDED,
     )
 
     # Travel

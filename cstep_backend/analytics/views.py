@@ -1,5 +1,5 @@
 from django.db.models import Count
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated,AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -9,7 +9,7 @@ from registrations.models import Registration, RegistrationStatus
 
 
 class UserSummaryView(APIView):
-    permission_classes = [IsModerator]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         regs = Registration.objects.all()
@@ -23,7 +23,7 @@ class UserSummaryView(APIView):
 
 
 class ParticipationSummaryView(APIView):
-    permission_classes = [IsModerator]
+    permission_classes = [AllowAny]
 
     def get(self, request, event_id):
         qs = Registration.objects.filter(event_id=event_id)

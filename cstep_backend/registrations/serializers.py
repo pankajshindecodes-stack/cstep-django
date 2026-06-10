@@ -23,6 +23,9 @@ class RegistrationSerializer(serializers.ModelSerializer):
             "participation_time", 
             "food_preference",
 
+            # Attendance
+            "attendance_mode",
+
             # Travel
             "travel_arrangement",
             "travel_status",
@@ -129,6 +132,8 @@ class LobbyRegistrationSerializer(serializers.ModelSerializer):
             "participation_time", 
             "food_preference",
 
+            "attendance_mode",
+            
             "travel_arrangement",
             "travel_status",
 

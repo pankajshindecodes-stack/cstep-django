@@ -1,14 +1,16 @@
 from django.utils import timezone
-from django.db.models import Avg, Max, Count
+from django.db.models import Avg, Max, Count,Exists, OuterRef
 from django.shortcuts import get_object_or_404
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from .utils import _get_client_ip, _get_peak_viewers,_send_ws_event
 from .models import Event, EventStatus, BroadcastSession, ViewerSession
+from registrations.models import Registration
+
 from .serializers import (
     EventListSerializer,
     EventDetailSerializer,
@@ -47,6 +49,7 @@ class EventViewSet(viewsets.ModelViewSet):
       POST /events/{id}/heartbeat/         — authenticated viewer
       GET  /events/{id}/analytics/         — MODERATOR+
       GET  /events/{id}/viewers/           — MODERATOR+
+      GET  /events/{id}/upcoming/          — all events with registration status
     """
 
     queryset = Event.objects.select_related("created_by").all()
@@ -72,7 +75,34 @@ class EventViewSet(viewsets.ModelViewSet):
     # ------------------------------------------------------------------
     # Stream lifecycle
     # ------------------------------------------------------------------
+    # @action(
+    #     detail=False,
+    #     methods=["get"],
+    #     permission_classes=[AllowAny],
+    #     serializer_class=UpcomingEventSerializer
+    # )
+    # def upcoming(self, request):
+    #     user_registered = Registration.objects.filter(
+    #         event=OuterRef("pk"),
+    #         user=request.user,
+    #     )
 
+    #     queryset = (
+    #         Event.objects.filter(
+    #             scheduled_start__gt=timezone.now(),
+    #         )
+    #         .annotate(is_registered=Exists(user_registered))
+    #         .order_by("scheduled_start")
+    #     )
+
+    #     page = self.paginate_queryset(queryset)
+    #     if page is not None:
+    #         serializer = self.get_serializer(page, many=True)
+    #         return self.get_paginated_response(serializer.data)
+
+    #     serializer = self.get_serializer(queryset, many=True)
+    #     return Response(serializer.data)
+    
     @action(detail=True, methods=["post"], url_path="go_live")
     def go_live(self, request, pk=None):
         event = self.get_object()
