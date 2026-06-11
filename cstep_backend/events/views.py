@@ -58,11 +58,15 @@ class EventViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "list":
             return EventListSerializer
+        if self.action == "upcoming":
+            return UpcomingEventSerializer
         if self.action in ("create", "update", "partial_update"):
             return EventCreateUpdateSerializer
         return EventDetailSerializer
 
     def get_permissions(self):
+        if self.action in ("upcoming",):
+            return [AllowAny()]
         if self.action in ("create",):
             return [IsEventAdminOrAbove()]
         if self.action in ("update", "partial_update", "destroy"):
@@ -76,12 +80,7 @@ class EventViewSet(viewsets.ModelViewSet):
     # ------------------------------------------------------------------
     # Stream lifecycle
     # ------------------------------------------------------------------
-    @action(
-        detail=False,
-        methods=["get"],
-        permission_classes=[AllowAny],
-        serializer_class=UpcomingEventSerializer,
-    )
+    @action(detail=False,methods=["get"])
     def upcoming(self, request):
         queryset = Event.objects.filter(
             scheduled_start__gte=timezone.now(),
@@ -97,11 +96,11 @@ class EventViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(queryset)
         if page is not None:
             
-            serializer = self.serializer_class(page, many=True)
+            serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
-        return Response(self.serializer_class(queryset, many=True).data)
-    
+        return Response(self.get_serializer(queryset, many=True).data)
+
     @action(detail=True, methods=["post"], url_path="go_live")
     def go_live(self, request, pk=None):
         event = self.get_object()
