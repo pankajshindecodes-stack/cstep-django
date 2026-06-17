@@ -1,5 +1,5 @@
 from django.utils import timezone
-from django.db.models import Avg, Max, Count,Exists, OuterRef
+from django.db.models import Avg, Q, Count,Exists, OuterRef
 from django.shortcuts import get_object_or_404
 
 from rest_framework import viewsets, status
@@ -54,6 +54,34 @@ class EventViewSet(viewsets.ModelViewSet):
     """
 
     queryset = Event.objects.select_related("created_by").all()
+    search_fields = [
+        "title",
+        "description",
+        "created_by__first_name",
+        "created_by__last_name",
+        "created_by__email",
+    ]
+
+    filterset_fields = {
+        "status": ["exact"],
+        "created_by": ["exact"],
+        "video_muted_by_default": ["exact"],
+        "pause_continue_enabled": ["exact"],
+        "scheduled_start": ["gte", "lte"],
+        "scheduled_end": ["gte", "lte"],
+        "created_at": ["gte", "lte"],
+    }
+
+    ordering_fields = [
+        "title",
+        "status",
+        "scheduled_start",
+        "scheduled_end",
+        "stream_start_time",
+        "stream_end_time",
+        "created_at",
+        "updated_at",
+    ]
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -77,6 +105,35 @@ class EventViewSet(viewsets.ModelViewSet):
             return [IsModeratorOrAbove()]
         return [IsAuthenticated()]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        event_type = self.request.query_params.get("type")
+        if self.action == "list" and event_type:
+            TYPE_FILTERS = {
+                "upcoming": (
+                    Q(scheduled_start__gt=timezone.now()),
+                    "scheduled_start",
+                ),
+                "live": (
+                    Q(scheduled_start__lte=timezone.now())
+                    & (Q(scheduled_end__gte=timezone.now()) | Q(scheduled_end__isnull=True)),
+                    "scheduled_start",
+                ),
+                "past": (
+                    Q(scheduled_end__lt=timezone.now()),
+                    "-scheduled_end",
+                ),
+            }
+            entry = TYPE_FILTERS.get(event_type)
+            if entry is None:
+                raise ValidationError(
+                    {"type": f"Invalid value. Choose from: {', '.join(TYPE_FILTERS)}"}
+                )
+            condition, ordering = entry
+            queryset = queryset.filter(condition).order_by(ordering)
+        return queryset
+    
     # ------------------------------------------------------------------
     # Stream lifecycle
     # ------------------------------------------------------------------

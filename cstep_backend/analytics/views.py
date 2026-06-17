@@ -18,6 +18,7 @@ class UserSummaryView(APIView):
             "participants_registered": regs.count(),
             "participants_accepted": regs.filter(status=RegistrationStatus.ACCEPTED).count(),
             "participants_rejected": regs.filter(status=RegistrationStatus.REJECTED).count(),
+            "participants_pending": regs.filter(status=RegistrationStatus.PENDING).count(),
             "participants_held": regs.filter(status=RegistrationStatus.HELD).count(),
         })
 
