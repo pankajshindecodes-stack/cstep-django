@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from rest_framework import viewsets,status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,23 +7,18 @@ from accounts.permissions import IsModerator
 from .models import Registration, RegistrationStatus
 from .serializers import (
     RegistrationSerializer,
-    RegistrationStatusSerializer,
-    TravelStatusSerializer,
-    TranslationStatusSerializer,
+    BulkStatusUpdateSerializer,
     LobbyRegistrationSerializer,
 )
+from django.utils import timezone
 
 
 class RegistrationViewSet(viewsets.ModelViewSet):
     queryset = Registration.objects.select_related("user", "event").prefetch_related("participation_dates")
 
     def get_serializer_class(self):
-        if self.action == "update_status":
-            return RegistrationStatusSerializer
-        elif self.action == "update_travel_status":
-            return TravelStatusSerializer
-        elif self.action == "update_translation_status":
-            return TranslationStatusSerializer
+        if self.action in ["update_status", "update_travel_status", "update_translation_status"]:
+            return BulkStatusUpdateSerializer
         elif self.action in ["registered", "proposed"]:
             return LobbyRegistrationSerializer
 
@@ -59,24 +54,51 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     def all_registrations(self, request):
         serializer = self.get_serializer(self.filter_queryset(self.get_queryset()), many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=["patch"], permission_classes=[IsModerator], url_path="bulk-status")
+    def bulk_update_status(self, request):
+        return self._bulk_update_registration(
+            request,
+            field_name="status",
+        )
 
-    @action(detail=True, methods=["patch"], permission_classes=[IsModerator], url_path="status")
-    def update_status(self, request, pk=None):
-        return self._patch_registration(request, RegistrationStatusSerializer)
+    @action(detail=False, methods=["patch"], permission_classes=[IsModerator], url_path="bulk-travel-status")
+    def bulk_update_travel_status(self, request):
+        return self._bulk_update_registration(
+            request,
+            field_name="travel_status",
+        )
 
-    @action(detail=True, methods=["patch"], permission_classes=[IsModerator], url_path="travel-status")
-    def update_travel_status(self, request, pk=None):
-        return self._patch_registration(request, TravelStatusSerializer)
-
-    @action(detail=True, methods=["patch"], permission_classes=[IsModerator], url_path="translation-status")
-    def update_translation_status(self, request, pk=None):
-        return self._patch_registration(request, TranslationStatusSerializer)
-
-    def _patch_registration(self, request, serializer_class):
-        serializer = serializer_class(self.get_object(), data=request.data, partial=True)
+    @action( detail=False, methods=["patch"], permission_classes=[IsModerator], url_path="bulk-translation-status")
+    def bulk_update_translation_status(self, request):
+        return self._bulk_update_registration(
+            request,
+            field_name="translation_status",
+        )
+    
+    def _bulk_update_registration(self, request, field_name):
+        serializer = BulkStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
+
+        ids = serializer.validated_data["ids"]
+        value = serializer.validated_data["status"]
+
+        updated = Registration.objects.filter(
+            id__in=ids
+        ).update(
+            **{
+                field_name: value,
+                "updated_at": timezone.now(),
+            }
+        )
+
+        return Response(
+            {
+                "message": f"{updated} registrations updated successfully.",
+                "updated_count": updated,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     def _lobby_queryset(self, event_id, **filters):
         return (

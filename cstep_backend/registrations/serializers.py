@@ -94,24 +94,16 @@ class RegistrationSerializer(serializers.ModelSerializer):
 
         return instance
 
-
-class RegistrationStatusSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Registration
-        fields = ["status"]
+from rest_framework import serializers
 
 
-class TravelStatusSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Registration
-        fields = ["travel_status"]
-
-
-class TranslationStatusSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Registration
-        fields = ["translation_status"]
-
+class BulkStatusUpdateSerializer(serializers.Serializer):
+    ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        allow_empty=False
+    )
+    status = serializers.CharField()
+    
 
 class LobbyRegistrationSerializer(serializers.ModelSerializer):
     user_name = serializers.SerializerMethodField()
