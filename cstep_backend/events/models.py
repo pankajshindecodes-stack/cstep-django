@@ -2,6 +2,8 @@ import secrets
 from django.db import models
 from django.conf import settings
 
+from .media import build_whip_ingest_url, build_whep_playback_url
+
 
 class EventStatus(models.TextChoices):
     DRAFT = "DRAFT", "Draft"
@@ -16,17 +18,16 @@ class Event(models.Model):
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=EventStatus.choices, default=EventStatus.DRAFT)
 
-    # Streaming settings
     video_muted_by_default = models.BooleanField(default=True)
     pause_continue_enabled = models.BooleanField(default=True)
     scheduled_start = models.DateTimeField(null=True, blank=True)
     scheduled_end = models.DateTimeField(null=True, blank=True)
 
-    # Actual stream times (set when broadcaster starts/stops)
     stream_start_time = models.DateTimeField(null=True, blank=True)
     stream_end_time = models.DateTimeField(null=True, blank=True)
 
-    # HLS playback URL (set by media server webhook or manually)
+    # Denormalized copy of broadcast_session.playback_url, set on go_live.
+    # Kept here so EventListSerializer can show it without joining broadcast_session.
     playback_url = models.URLField(blank=True)
     recording_url = models.URLField(blank=True)
 
@@ -45,25 +46,19 @@ class Event(models.Model):
 
 class BroadcastSession(models.Model):
     """
-    One per live event. Holds the broadcaster's ingest credentials.
-    Created when an admin/moderator sets up streaming for an event.
+    One per live event. WHIP ingest / WHEP playback URLs are generated
+    automatically on first save — never accept these from a client.
     """
-
-    class IngestProtocol(models.TextChoices):
-        RTMP = "RTMP", "RTMP"
-        WHIP = "WHIP", "WHIP (WebRTC)"  # for browser-based broadcasting
 
     event = models.OneToOneField(Event, on_delete=models.CASCADE, related_name="broadcast_session")
     broadcaster = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="broadcast_sessions"
     )
 
-    # Ingest credentials
-    stream_key = models.CharField(max_length=64, unique=True, db_index=True)
-    ingest_url = models.URLField()             # e.g. rtmp://yourserver/live
-    protocol = models.CharField(max_length=10, choices=IngestProtocol.choices, default=IngestProtocol.RTMP)
+    stream_key = models.CharField(max_length=64, unique=True, db_index=True, editable=False)
+    ingest_url = models.URLField(editable=False)    # WHIP — broadcaster publishes here
+    playback_url = models.URLField(editable=False)  # WHEP — viewers subscribe here
 
-    # Session state
     is_active = models.BooleanField(default=False)
     started_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
@@ -71,18 +66,23 @@ class BroadcastSession(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     @staticmethod
-    def generate_stream_key():
+    def generate_stream_key() -> str:
         return secrets.token_urlsafe(32)
+
+    def save(self, *args, **kwargs):
+        if not self.stream_key:
+            self.stream_key = self.generate_stream_key()
+        if not self.ingest_url:
+            self.ingest_url = build_whip_ingest_url(self.stream_key)
+        if not self.playback_url:
+            self.playback_url = build_whep_playback_url(self.stream_key)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"BroadcastSession for {self.event.title}"
 
 
 class ViewerSession(models.Model):
-    """
-    Tracks each viewer joining/leaving an event stream.
-    One user can have multiple sessions (rejoins).
-    """
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="viewer_sessions"
     )
@@ -93,8 +93,7 @@ class ViewerSession(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)
 
-    # Playback state (optional, for analytics)
-    last_heartbeat = models.DateTimeField(null=True, blank=True)  # periodic ping from client
+    last_heartbeat = models.DateTimeField(null=True, blank=True)
     watch_duration_seconds = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -109,7 +108,6 @@ class ViewerSession(models.Model):
 
 
 class EventLogin(models.Model):
-    """Keep as-is — tracks auth logins to the event, separate from viewer sessions."""
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="event_logins"
     )

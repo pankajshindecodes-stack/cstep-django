@@ -36,6 +36,7 @@ Admin panel: http://localhost:8000/admin
 ## API Endpoints
 
 User-wise workflow diagrams are available in [`docs/user-wise-workflow.md`](docs/user-wise-workflow.md).
+Live streaming setup with the bundled MediaMTX Docker service is available in [`docs/live-streaming-mediamtx.md`](docs/live-streaming-mediamtx.md).
 
 ### Auth (`/auth/`)
 | Method | URL | Access | Description |

@@ -139,6 +139,18 @@ MEDIA_SERVER_WEBHOOK_SECRET = os.getenv(
     "MEDIA_SERVER_WEBHOOK_SECRET",
     "ze0!ev-x0#84$*m!78#&)fi01k)v!&o*y^&2mo^y-t^&$bw!ht"
 )
+MEDIA_SERVER_RTMP_BASE_URL = os.getenv(
+    "MEDIA_SERVER_RTMP_BASE_URL",
+    "rtmp://localhost:1935/live",
+).rstrip("/")
+MEDIA_SERVER_HLS_BASE_URL = os.getenv(
+    "MEDIA_SERVER_HLS_BASE_URL",
+    "http://localhost:8888/live",
+).rstrip("/")
+MEDIA_SERVER_WEBRTC_BASE_URL = os.getenv(
+    "MEDIA_SERVER_WEBRTC_BASE_URL",
+    "http://localhost:8889/live",
+).rstrip("/")
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
 CORS_ALLOW_ALL_ORIGINS = True  # Tighten in production

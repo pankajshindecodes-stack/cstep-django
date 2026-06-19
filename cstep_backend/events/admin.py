@@ -11,6 +11,7 @@ class BroadcastSessionInline(admin.StackedInline):
     model = BroadcastSession
     extra = 0
     readonly_fields = (
+        "ingest_url",
         "stream_key",
         "created_at",
         "started_at",
@@ -117,7 +118,6 @@ class BroadcastSessionAdmin(admin.ModelAdmin):
         "id",
         "event",
         "broadcaster",
-        "protocol",
         "is_active",
         "started_at",
         "ended_at",
@@ -125,7 +125,6 @@ class BroadcastSessionAdmin(admin.ModelAdmin):
     )
 
     list_filter = (
-        "protocol",
         "is_active",
         "created_at",
     )
@@ -139,6 +138,7 @@ class BroadcastSessionAdmin(admin.ModelAdmin):
     )
 
     readonly_fields = (
+        "ingest_url",
         "stream_key",
         "created_at",
         "started_at",
@@ -164,7 +164,6 @@ class BroadcastSessionAdmin(admin.ModelAdmin):
             "Ingest Configuration",
             {
                 "fields": (
-                    "protocol",
                     "ingest_url",
                     "stream_key",
                 )

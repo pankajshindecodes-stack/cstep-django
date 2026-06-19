@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WHIP Publisher Test</title>
+</head>
+<body>
+    <h2>Publish Webcam</h2>
+
+    <label>WHIP Ingest URL:</label>
+    <input
+        type="text"
+        id="ingestUrl"
+        size="100"
+        placeholder="http://server:8889/live/stream-id/whip"
+    />
+
+    <br><br>
+
+    <button onclick="startPublishing()">Start Publishing</button>
+
+    <br><br>
+
+    <video id="localVideo" autoplay muted playsinline width="640"></video>
+
+    <script>
+        async function startPublishing() {
+            try {
+                const ingestUrl = document.getElementById("ingestUrl").value.trim();
+
+                if (!ingestUrl) {
+                    alert("Please enter a WHIP ingest URL");
+                    return;
+                }
+
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+
+                document.getElementById("localVideo").srcObject = stream;
+
+                const pc = new RTCPeerConnection();
+
+                stream.getTracks().forEach(track => {
+                    pc.addTrack(track, stream);
+                });
+
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                await new Promise(resolve => {
+                    if (pc.iceGatheringState === "complete") {
+                        resolve();
+                    } else {
+                        pc.addEventListener("icegatheringstatechange", () => {
+                            if (pc.iceGatheringState === "complete") {
+                                resolve();
+                            }
+                        });
+                    }
+                });
+
+                const response = await fetch(ingestUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/sdp"
+                    },
+                    body: pc.localDescription.sdp
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const answerSdp = await response.text();
+
+                await pc.setRemoteDescription({
+                    type: "answer",
+                    sdp: answerSdp
+                });
+
+                console.log("Publishing started");
+                alert("Publishing started successfully!");
+            } catch (err) {
+                console.error(err);
+                alert("Failed: " + err.message);
+            }
+        }
+    </script>
+</body>
+</html>

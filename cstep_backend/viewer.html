@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WHEP Viewer Test</title>
+</head>
+<body>
+    <h2>Live Stream Viewer</h2>
+
+    <input
+        type="text"
+        id="playbackUrl"
+        placeholder="Enter WHEP URL"
+        size="100"
+    />
+
+    <button onclick="startViewing()">Start Viewing</button>
+
+    <br><br>
+
+    <video
+        id="video"
+        autoplay
+        playsinline
+        controls
+        muted
+        width="800"
+    ></video>
+
+    <script>
+        async function startViewing() {
+            try {
+                const playbackUrl = document
+                    .getElementById("playbackUrl")
+                    .value
+                    .trim();
+
+                if (!playbackUrl) {
+                    alert("Please enter a WHEP URL");
+                    return;
+                }
+
+                console.log("Connecting to:", playbackUrl);
+
+                const pc = new RTCPeerConnection();
+
+                pc.ontrack = (event) => {
+                    console.log("Track received:", event.track.kind);
+
+                    if (!video.srcObject) {
+                        video.srcObject = event.streams[0];
+                    }
+                };
+
+                // Receive audio/video
+                pc.addTransceiver("video", {
+                    direction: "recvonly"
+                });
+
+                pc.addTransceiver("audio", {
+                    direction: "recvonly"
+                });
+
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+
+                await new Promise(resolve => {
+                    if (pc.iceGatheringState === "complete") {
+                        resolve();
+                    } else {
+                        pc.addEventListener(
+                            "icegatheringstatechange",
+                            () => {
+                                if (
+                                    pc.iceGatheringState ===
+                                    "complete"
+                                ) {
+                                    resolve();
+                                }
+                            }
+                        );
+                    }
+                });
+
+                const response = await fetch(playbackUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/sdp"
+                    },
+                    body: pc.localDescription.sdp
+                });
+
+                console.log(
+                    "Response status:",
+                    response.status
+                );
+
+                if (!response.ok) {
+                    throw new Error(
+                        await response.text()
+                    );
+                }
+
+                const answer = await response.text();
+
+                await pc.setRemoteDescription({
+                    type: "answer",
+                    sdp: answer
+                });
+
+                console.log("Connected to stream");
+            } catch (err) {
+                console.error(err);
+                alert(err.message);
+            }
+        }
+    </script>
+</body>
+</html>
