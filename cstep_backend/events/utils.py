@@ -42,11 +42,19 @@ def _handle_stream_started(bs: BroadcastSession, event: Event, data: dict):
 
     event.status = EventStatus.LIVE
     event.stream_start_time = now
-    event.playback_url = bs.playback_url  # trust our own stored URL, not webhook input
+    event.playback_url = event.primary_broadcast_session.playback_url
     event.save(update_fields=["status", "stream_start_time", "playback_url", "updated_at"])
 
-    _send_ws_event(event.id, {"type": "stream.started", "playback_url": event.playback_url})
-    logger.info("Event %s went LIVE via webhook.", event.id)
+    _send_ws_event(
+        event.id,
+        {
+            "type": "stream.started",
+            "camera_id": bs.id,
+            "camera_name": bs.name,
+            "playback_urls": list(event.broadcast_sessions.values_list("playback_url", flat=True)),
+        },
+    )
+    logger.info("Event %s camera %s went LIVE via webhook.", event.id, bs.id)
 
 
 def _handle_stream_ended(bs: BroadcastSession, event: Event):
@@ -56,14 +64,18 @@ def _handle_stream_ended(bs: BroadcastSession, event: Event):
     bs.ended_at = now
     bs.save(update_fields=["is_active", "ended_at"])
 
-    event.status = EventStatus.ENDED
-    event.stream_end_time = now
-    event.save(update_fields=["status", "stream_end_time", "updated_at"])
+    if not event.broadcast_sessions.filter(is_active=True).exists():
+        event.status = EventStatus.ENDED
+        event.stream_end_time = now
+        event.save(update_fields=["status", "stream_end_time", "updated_at"])
 
-    ViewerSession.objects.filter(event=event, left_at=None).update(left_at=now)
+        ViewerSession.objects.filter(event=event, left_at=None).update(left_at=now)
 
-    _send_ws_event(event.id, {"type": "stream.ended"})
-    logger.info("Event %s ENDED via webhook.", event.id)
+        _send_ws_event(event.id, {"type": "stream.ended", "camera_id": bs.id, "camera_name": bs.name})
+        logger.info("Event %s ENDED via webhook.", event.id)
+    else:
+        _send_ws_event(event.id, {"type": "camera.ended", "camera_id": bs.id, "camera_name": bs.name})
+        logger.info("Event %s camera %s ENDED via webhook.", event.id, bs.id)
 
 
 def _handle_stream_error(bs: BroadcastSession, event: Event):
@@ -73,5 +85,7 @@ def _handle_stream_error(bs: BroadcastSession, event: Event):
 
     _send_ws_event(event.id, {
         "type": "stream.error",
+        "camera_id": bs.id,
+        "camera_name": bs.name,
         "message": "The stream encountered an error. Please try again.",
     })

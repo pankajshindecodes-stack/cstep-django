@@ -26,8 +26,8 @@ class Event(models.Model):
     stream_start_time = models.DateTimeField(null=True, blank=True)
     stream_end_time = models.DateTimeField(null=True, blank=True)
 
-    # Denormalized copy of broadcast_session.playback_url, set on go_live.
-    # Kept here so EventListSerializer can show it without joining broadcast_session.
+    # Denormalized copy of the primary camera playback URL, set on go_live.
+    # Kept here so EventListSerializer can show it without joining broadcast_sessions.
     playback_url = models.URLField(blank=True)
     recording_url = models.URLField(blank=True)
 
@@ -43,6 +43,18 @@ class Event(models.Model):
     def __str__(self):
         return self.title
 
+    @property
+    def primary_broadcast_session(self):
+        return self.broadcast_sessions.order_by("-is_primary", "id").first()
+
+    @property
+    def broadcast_session(self):
+        """
+        Backward-compatible alias for code that previously expected one
+        broadcast session per event.
+        """
+        return self.primary_broadcast_session
+
 
 class BroadcastSession(models.Model):
     """
@@ -50,11 +62,13 @@ class BroadcastSession(models.Model):
     automatically on first save — never accept these from a client.
     """
 
-    event = models.OneToOneField(Event, on_delete=models.CASCADE, related_name="broadcast_session")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name="broadcast_sessions")
     broadcaster = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="broadcast_sessions"
     )
 
+    name = models.CharField(max_length=100, default="Camera 1")
+    is_primary = models.BooleanField(default=False)
     stream_key = models.CharField(max_length=64, unique=True, db_index=True, editable=False)
     ingest_url = models.URLField(editable=False)    # WHIP — broadcaster publishes here
     playback_url = models.URLField(editable=False)  # WHEP — viewers subscribe here
@@ -65,11 +79,25 @@ class BroadcastSession(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ["-is_primary", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event"],
+                condition=models.Q(is_primary=True),
+                name="unique_primary_broadcast_session_per_event",
+            )
+        ]
+
     @staticmethod
     def generate_stream_key() -> str:
-        return secrets.token_urlsafe(32)
+        return secrets.token_urlsafe(8)  # 11 chars, ~62^11 combinations 18.4 quintillion
 
     def save(self, *args, **kwargs):
+        if self.is_primary and self.event_id:
+            BroadcastSession.objects.filter(event_id=self.event_id, is_primary=True).exclude(pk=self.pk).update(
+                is_primary=False
+            )
         if not self.stream_key:
             self.stream_key = self.generate_stream_key()
         if not self.ingest_url:
@@ -79,7 +107,7 @@ class BroadcastSession(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"BroadcastSession for {self.event.title}"
+        return f"{self.name} for {self.event.title}"
 
 
 class ViewerSession(models.Model):

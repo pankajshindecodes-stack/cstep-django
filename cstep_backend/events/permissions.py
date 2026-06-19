@@ -27,6 +27,8 @@ class IsBroadcasterOrAdmin(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.user.role in ("EVENT_ADMIN", "SUPER_ADMIN"):
             return True
+        if hasattr(obj, "broadcast_sessions"):
+            return obj.broadcast_sessions.filter(broadcaster=request.user).exists()
         return obj.broadcaster == request.user
 
 

@@ -146,26 +146,43 @@ class EventViewSet(viewsets.ModelViewSet):
         if event.status == EventStatus.LIVE:
             return Response({"detail": "Event is already live."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not hasattr(event, "broadcast_session"):
+        sessions = list(event.broadcast_sessions.all())
+        if not sessions:
             return Response(
                 {"detail": "No broadcast session configured. Create one first."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        bs = event.broadcast_session
+        primary_session = event.primary_broadcast_session
 
         event.status = EventStatus.LIVE
         event.stream_start_time = timezone.now()
-        event.playback_url = bs.playback_url
+        event.playback_url = primary_session.playback_url
         event.save(update_fields=["status", "stream_start_time", "playback_url", "updated_at"])
 
-        bs.is_active = True
-        bs.started_at = event.stream_start_time
-        bs.save(update_fields=["is_active", "started_at"])
+        event.broadcast_sessions.update(is_active=True, started_at=event.stream_start_time)
 
-        _send_ws_event(event.id, {"type": "stream.started", "playback_url": event.playback_url})
+        _send_ws_event(
+            event.id,
+            {
+                "type": "stream.started",
+                "playback_urls": [session.playback_url for session in sessions],
+            },
+        )
 
         return Response(EventDetailSerializer(event, context={"request": request}).data)
+
+    def _select_broadcast_session(self, event, request, sessions=None):
+        camera_id = request.query_params.get("camera_id")
+        camera_name = request.query_params.get("camera")
+        if sessions is None:
+            sessions = event.broadcast_sessions.all()
+
+        if camera_id:
+            return sessions.filter(id=camera_id).first()
+        if camera_name:
+            return sessions.filter(name=camera_name).first()
+        return sessions.order_by("-is_primary", "id").first()
 
     @action(detail=True, methods=["get"], url_path="broadcast")
     def broadcast(self, request, pk=None):
@@ -176,27 +193,45 @@ class EventViewSet(viewsets.ModelViewSet):
         """
         event = self.get_object()
 
-        if not hasattr(event, "broadcast_session"):
+        if request.user.role in ("EVENT_ADMIN", "SUPER_ADMIN"):
+            visible_sessions = event.broadcast_sessions.all()
+        else:
+            visible_sessions = event.broadcast_sessions.filter(broadcaster=request.user)
+
+        sessions = list(visible_sessions)
+        if not sessions:
             return Response(
                 {"detail": "No broadcast session configured. Create one first."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        bs = event.broadcast_session
-        return Response({"ingest_url": bs.ingest_url, "stream_key": bs.stream_key})
+        bs = self._select_broadcast_session(event, request, visible_sessions)
+        if bs is None:
+            return Response({"detail": "Camera not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            "broadcast_sessions": BroadcastSessionSerializer(sessions, many=True).data,
+        })
 
     @action(detail=True, methods=["get"], url_path="watch")
     def watch(self, request, pk=None):
         """Returns the WHEP playback URL for the viewer's client to subscribe to."""
         event = self.get_object()
 
-        if not hasattr(event, "broadcast_session"):
+        sessions = list(event.broadcast_sessions.all())
+        if not sessions:
             return Response(
                 {"detail": "No broadcast session configured. Create one first."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        return Response({"playback_url": event.broadcast_session.playback_url})
+        bs = self._select_broadcast_session(event, request)
+        if bs is None:
+            return Response({"detail": "Camera not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            "broadcast_sessions": BroadcastSessionSerializer(sessions, many=True).data,
+        })
 
     @action(detail=True, methods=["post"], url_path="end_stream")
     def end_stream(self, request, pk=None):
@@ -210,10 +245,7 @@ class EventViewSet(viewsets.ModelViewSet):
         event.stream_end_time = now
         event.save(update_fields=["status", "stream_end_time", "updated_at"])
 
-        bs = event.broadcast_session
-        bs.is_active = False
-        bs.ended_at = now
-        bs.save(update_fields=["is_active", "ended_at"])
+        event.broadcast_sessions.update(is_active=False, ended_at=now)
 
         ViewerSession.objects.filter(event=event, left_at=None).update(left_at=now)
 
@@ -249,7 +281,7 @@ class EventViewSet(viewsets.ModelViewSet):
         payload = {
             "event_id": event.id,
             "event_title": event.title,
-            "playback_url": event.playback_url,
+            "broadcast_sessions": event.broadcast_sessions.all(),
             "viewer_session_id": session.id,
             "concurrent_viewers": concurrent,
             "video_muted_by_default": event.video_muted_by_default,

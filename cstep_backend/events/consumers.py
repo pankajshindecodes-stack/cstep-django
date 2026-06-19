@@ -43,7 +43,7 @@ class EventStreamConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             "type": "stream.state",
             "status": event.status,
-            "playback_url": event.playback_url,
+            "broadcast_sessions": await self._get_broadcast_sessions(self.event_id),
             "concurrent_viewers": await self._get_concurrent_viewers(self.event_id),
             "video_muted_by_default": event.video_muted_by_default,
         }))
@@ -99,6 +99,20 @@ class EventStreamConsumer(AsyncWebsocketConsumer):
     def _get_concurrent_viewers(self, event_id):
         from .models import ViewerSession
         return ViewerSession.objects.filter(event_id=event_id, left_at=None).count()
+
+    @database_sync_to_async
+    def _get_broadcast_sessions(self, event_id):
+        from .models import BroadcastSession
+        sessions = list(
+            BroadcastSession.objects.filter(event_id=event_id).values(
+                "id", "name", "is_primary", "is_active", "playback_url", "started_at", "ended_at"
+            )
+        )
+        for session in sessions:
+            for key in ("started_at", "ended_at"):
+                if session[key]:
+                    session[key] = session[key].isoformat()
+        return sessions
 
     @database_sync_to_async
     def _update_heartbeat(self, user_id, event_id):
