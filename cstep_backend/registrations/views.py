@@ -52,7 +52,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save()
         
-    @action(detail=True, methods=["post"], url_path="details")
+    @action(detail=True, methods=["post"], url_path="s")
     def create_details(self, request, pk=None):
         registration = self.get_object()
 
