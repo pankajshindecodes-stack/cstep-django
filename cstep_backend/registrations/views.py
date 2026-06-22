@@ -1,11 +1,12 @@
-from rest_framework import viewsets,status
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.permissions import IsModerator
-from .models import Registration, RegistrationStatus
+from .models import Registration, RegistrationDetails, RegistrationStatus
 from .serializers import (
+    RegistrationDetailsSerializer,
     RegistrationSerializer,
     BulkStatusUpdateSerializer,
     LobbyRegistrationSerializer,
@@ -14,13 +15,19 @@ from django.utils import timezone
 
 
 class RegistrationViewSet(viewsets.ModelViewSet):
-    queryset = Registration.objects.select_related("user", "event").prefetch_related("participation_dates")
+    queryset = (
+        Registration.objects
+        .select_related("user", "event", "details")
+        .prefetch_related("participation_dates")
+    )
 
     def get_serializer_class(self):
         if self.action in ["update_status", "update_travel_status", "update_translation_status"]:
             return BulkStatusUpdateSerializer
         elif self.action in ["registered", "proposed"]:
             return LobbyRegistrationSerializer
+        elif self.action == "create_details":
+            return RegistrationDetailsSerializer
 
         return RegistrationSerializer
 
@@ -44,7 +51,16 @@ class RegistrationViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save()
+        
+    @action(detail=True, methods=["post"], url_path="details")
+    def create_details(self, request, pk=None):
+        registration = self.get_object()
 
+        serializer = RegistrationDetailsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(registration=registration)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated], url_path="my")
     def my_registrations(self, request):
         serializer = self.get_serializer(self.get_queryset(), many=True)
@@ -54,7 +70,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     def all_registrations(self, request):
         serializer = self.get_serializer(self.filter_queryset(self.get_queryset()), many=True)
         return Response(serializer.data)
-    
+
     @action(detail=False, methods=["patch"], permission_classes=[IsModerator], url_path="bulk-status")
     def bulk_update_status(self, request):
         return self._bulk_update_registration(
@@ -69,28 +85,39 @@ class RegistrationViewSet(viewsets.ModelViewSet):
             field_name="travel_status",
         )
 
-    @action( detail=False, methods=["patch"], permission_classes=[IsModerator], url_path="bulk-translation-status")
+    @action(detail=False, methods=["patch"], permission_classes=[IsModerator], url_path="bulk-translation-status")
     def bulk_update_translation_status(self, request):
         return self._bulk_update_registration(
             request,
             field_name="translation_status",
         )
-    
+
+    # Fields that now live on RegistrationDetails instead of Registration
+    DETAILS_FIELDS = {"travel_status", "translation_status"}
+
     def _bulk_update_registration(self, request, field_name):
         serializer = BulkStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         ids = serializer.validated_data["ids"]
         value = serializer.validated_data["status"]
+        now = timezone.now()
 
-        updated = Registration.objects.filter(
-            id__in=ids
-        ).update(
-            **{
-                field_name: value,
-                "updated_at": timezone.now(),
-            }
-        )
+        if field_name in self.DETAILS_FIELDS:
+            updated = RegistrationDetails.objects.filter(
+                registration_id__in=ids
+            ).update(
+                **{field_name: value, "updated_at": now}
+            )
+            # Keep the parent Registration's updated_at in sync for any
+            # rows that actually had a details record to update.
+            Registration.objects.filter(
+                id__in=ids, details__isnull=False
+            ).update(updated_at=now)
+        else:
+            updated = Registration.objects.filter(id__in=ids).update(
+                **{field_name: value, "updated_at": now}
+            )
 
         return Response(
             {
@@ -103,7 +130,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     def _lobby_queryset(self, event_id, **filters):
         return (
             Registration.objects
-            .select_related("user")
+            .select_related("user", "details")
             .prefetch_related("participation_dates")
             .filter(event_id=event_id, **filters)
         )

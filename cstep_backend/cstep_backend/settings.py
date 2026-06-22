@@ -143,6 +143,10 @@ MEDIA_SERVER_RTMP_BASE_URL = os.getenv(
     "MEDIA_SERVER_RTMP_BASE_URL",
     "rtmp://localhost:1935/live",
 ).rstrip("/")
+MEDIA_SERVER_RTSP_BASE_URL = os.getenv(
+    "MEDIA_SERVER_RTSP_BASE_URL",
+    "rtsp://localhost:8554/live",
+).rstrip("/")
 MEDIA_SERVER_HLS_BASE_URL = os.getenv(
     "MEDIA_SERVER_HLS_BASE_URL",
     "http://localhost:8888/live",

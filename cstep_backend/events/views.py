@@ -385,8 +385,7 @@ class BroadcastSessionViewSet(viewsets.ModelViewSet):
                 {"detail": "Cannot rotate key while stream is active."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        # clear all three so save() regenerates ingest_url/playback_url
-        # to match the new key — previously only stream_key was rotated,
+        
         # leaving the URLs pointing at a dead key
         session.stream_key = BroadcastSession.generate_stream_key()
         session.ingest_url = ""

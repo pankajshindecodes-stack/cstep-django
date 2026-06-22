@@ -1,10 +1,23 @@
 from django.contrib import admin
-from .models import Registration, ParticipationDate
+from .models import Registration, ParticipationDate, RegistrationDetails
 
 
 class ParticipationDateInline(admin.TabularInline):
     model = ParticipationDate
     extra = 0
+
+
+class RegistrationDetailsInline(admin.StackedInline):
+    model = RegistrationDetails
+    extra = 0
+    max_num = 1
+    can_delete = True
+    fieldsets = (
+        ("Food Preference", {"fields": ("food_preference",)}),
+        ("Travel", {"fields": ("travel_arrangement", "travel_status")}),
+        ("Medical Support", {"fields": ("medical_support",)}),
+        ("Translation", {"fields": ("translation_language", "translation_status")}),
+    )
 
 
 @admin.register(Registration)
@@ -15,23 +28,23 @@ class RegistrationAdmin(admin.ModelAdmin):
         "event",
         "status",
         "participation_time",
-        "food_preference",
-        "travel_arrangement",
-        "travel_status",
-        "translation_language",
-        "translation_status",
+        "get_food_preference",
+        "get_travel_arrangement",
+        "get_travel_status",
+        "get_translation_language",
+        "get_translation_status",
         "created_at",
     )
 
     list_filter = (
         "status",
-        "food_preference",
-        "travel_arrangement",
         "participation_time",
-        "travel_status",
-        "medical_support",
-        "translation_language",
-        "translation_status",
+        "details__food_preference",
+        "details__travel_arrangement",
+        "details__travel_status",
+        "details__medical_support",
+        "details__translation_language",
+        "details__translation_status",
         "created_at",
     )
 
@@ -53,7 +66,7 @@ class RegistrationAdmin(admin.ModelAdmin):
         "event",
     )
 
-    inlines = [ParticipationDateInline]
+    inlines = [RegistrationDetailsInline, ParticipationDateInline]
 
     fieldsets = (
         (
@@ -68,40 +81,6 @@ class RegistrationAdmin(admin.ModelAdmin):
             },
         ),
         (
-            "Food Preference",
-            {
-                "fields": (
-                    "food_preference",
-                )
-            },
-        ),
-        (
-            "Travel",
-            {
-                "fields": (
-                    "travel_arrangement",
-                    "travel_status",
-                )
-            },
-        ),
-        (
-            "Medical Support",
-            {
-                "fields": (
-                    "medical_support",
-                )
-            },
-        ),
-        (
-            "Translation",
-            {
-                "fields": (
-                    "translation_language",
-                    "translation_status",
-                )
-            },
-        ),
-        (
             "Timestamps",
             {
                 "fields": (
@@ -111,6 +90,31 @@ class RegistrationAdmin(admin.ModelAdmin):
             },
         ),
     )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related(
+            "user", "event", "details"
+        )
+
+    @admin.display(description="Food Preference")
+    def get_food_preference(self, obj):
+        return getattr(obj.details, "food_preference", None)
+
+    @admin.display(description="Travel Arrangement")
+    def get_travel_arrangement(self, obj):
+        return getattr(obj.details, "travel_arrangement", None)
+
+    @admin.display(description="Travel Status")
+    def get_travel_status(self, obj):
+        return getattr(obj.details, "travel_status", None)
+
+    @admin.display(description="Translation Language")
+    def get_translation_language(self, obj):
+        return getattr(obj.details, "translation_language", None)
+
+    @admin.display(description="Translation Status")
+    def get_translation_status(self, obj):
+        return getattr(obj.details, "translation_status", None)
 
 
 @admin.register(ParticipationDate)

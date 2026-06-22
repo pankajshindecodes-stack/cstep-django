@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Event, EventStatus, BroadcastSession, ViewerSession, EventLogin
+from .media import build_ingest_urls, build_playback_urls
 
 
 # ---------------------------------------------------------------------------
@@ -28,7 +29,10 @@ class EventListSerializer(serializers.ModelSerializer):
         return obj.viewer_sessions.filter(left_at=None).count()
 
     def get_playback_urls(self, obj):
-        return list(obj.broadcast_sessions.values_list("playback_url", flat=True))
+        return [
+            build_playback_urls(stream_key)
+            for stream_key in obj.broadcast_sessions.values_list("stream_key", flat=True)
+        ]
 
 
 class EventDetailSerializer(EventListSerializer):
@@ -56,7 +60,7 @@ class EventDetailSerializer(EventListSerializer):
             "name": session.name,
             "is_primary": session.is_primary,
             "is_active": session.is_active,
-            "playback_url": session.playback_url,
+            "playback_urls": build_playback_urls(session.stream_key),
             "started_at": session.started_at,
             "ended_at": session.ended_at,
         }
@@ -67,7 +71,7 @@ class EventDetailSerializer(EventListSerializer):
         ):
             data.update({
                 "stream_key": session.stream_key,
-                "ingest_url": session.ingest_url,
+                "ingest_urls": build_ingest_urls(session.stream_key),
                 "started_at": session.started_at,
             })
         return data
@@ -95,21 +99,29 @@ class EventCreateUpdateSerializer(serializers.ModelSerializer):
 class BroadcastSessionSerializer(serializers.ModelSerializer):
     event_title = serializers.CharField(source="event.title", read_only=True)
     broadcaster_name = serializers.SerializerMethodField()
+    ingest_urls = serializers.SerializerMethodField()
+    playback_urls = serializers.SerializerMethodField()
 
     class Meta:
         model = BroadcastSession
         fields = [
             "id", "event", "event_title", "broadcaster", "broadcaster_name",
-            "name", "is_primary", "stream_key", "ingest_url", "playback_url",
+            "name", "is_primary", "stream_key", "ingest_urls", "playback_urls",
             "is_active", "started_at", "ended_at", "created_at",
         ]
         read_only_fields = [
-            "stream_key", "ingest_url", "playback_url",
+            "stream_key", "ingest_urls", "playback_urls",
             "is_active", "started_at", "ended_at", "created_at",
         ]
 
     def get_broadcaster_name(self, obj):
         return f"{obj.broadcaster.first_name} {obj.broadcaster.last_name}"
+
+    def get_ingest_urls(self, obj):
+        return build_ingest_urls(obj.stream_key)
+
+    def get_playback_urls(self, obj):
+        return build_playback_urls(obj.stream_key)
 
 
 class BroadcastSessionCreateSerializer(serializers.ModelSerializer):
