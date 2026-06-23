@@ -2,7 +2,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
 from .models import (
     Registration, ParticipationDate,
-    TravelAssistance, MedicalAssistance, TranslationAssistance,
+    TravelAssistance, MedicalAssistance, TranslationAssistance,Event
 )
 
 class ParticipationDateSerializer(serializers.ModelSerializer):
@@ -10,12 +10,19 @@ class ParticipationDateSerializer(serializers.ModelSerializer):
         model = ParticipationDate
         fields = ["id", "date"]
 
+class EventDropdownSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Event
+        fields = ["id", "title"]
+
 
 class TravelAssistanceSerializer(serializers.ModelSerializer):
+    event_id = serializers.IntegerField(source='registration.event.id', write_only=True)
     class Meta:
         model = TravelAssistance
         fields = [
             "id",
+            "event_id",
             "transport_mode",
             "source_location",
             "destination_location",
@@ -26,18 +33,20 @@ class TravelAssistanceSerializer(serializers.ModelSerializer):
 
 
 class MedicalAssistanceSerializer(serializers.ModelSerializer):
+    event_id = serializers.IntegerField(source='registration.event.id', write_only=True)
     class Meta:
         model = MedicalAssistance
-        fields = ["id", "medical_needs", "date", "status"]
+        fields = ["id", "event_id", "medical_needs", "date", "status"]
         read_only_fields = ["id", "status"]
 
 
 class TranslationAssistanceSerializer(serializers.ModelSerializer):
+    event_id = serializers.IntegerField(source='registration.event.id', write_only=True)
     class Meta:
         model = TranslationAssistance
-        fields = ["id", "language", "date", "status"]
+        fields = ["id", "event_id", "language", "date", "status"]
         read_only_fields = ["id", "status"]
-        
+
 class RegistrationSerializer(serializers.ModelSerializer):
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
     participation_dates = ParticipationDateSerializer(many=True)

@@ -7,7 +7,7 @@ from django.utils import timezone
 from accounts.permissions import IsModerator
 from .models import (
     Registration, RegistrationStatus,
-    TravelAssistance, MedicalAssistance, TranslationAssistance,
+    TravelAssistance, MedicalAssistance, TranslationAssistance,Event
 )
 from .serializers import (
     RegistrationSerializer,
@@ -64,18 +64,24 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         return queryset
     
     # Inside RegistrationViewSet
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated], url_path="request-travel")
-    def request_travel(self, request, pk=None):
-        registration = self.get_object()
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated], url_path="request-travel")
+    def request_travel(self, request):
+        registration = (
+            Event.objects.get(id=request.data.get("event_id"))
+            .registrations.filter(user=request.user).first()
+        )
         serializer = TravelAssistanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(registration=registration, status=ApprovalStatus.PENDING)
+        serializer.save(registration=registration)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated], url_path="request-medical")
-    def request_medical(self, request, pk=None):
-        registration = self.get_object()
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated], url_path="request-medical")
+    def request_medical(self, request):
+        registration = registration = (
+            Event.objects.get(id=request.data.get("event_id"))
+            .registrations.filter(user=request.user).first()
+        )
 
         if hasattr(registration, "medical_assistance"):
             return Response(
@@ -85,13 +91,16 @@ class RegistrationViewSet(viewsets.ModelViewSet):
 
         serializer = MedicalAssistanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(registration=registration, status=ApprovalStatus.PENDING)
+        serializer.save(registration=registration)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated], url_path="request-translation")
-    def request_translation(self, request, pk=None):
-        registration = self.get_object()
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated], url_path="request-translation")
+    def request_translation(self, request):
+        registration = registration = (
+            Event.objects.get(id=request.data.get("event_id"))
+            .registrations.filter(user=request.user).first()
+        )
 
         if hasattr(registration, "translation_assistance"):
             return Response(
@@ -101,7 +110,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
 
         serializer = TranslationAssistanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(registration=registration, status=ApprovalStatus.PENDING)
+        serializer.save(registration=registration)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
