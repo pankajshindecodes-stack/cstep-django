@@ -2,37 +2,51 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.utils import timezone
 
 from accounts.permissions import IsModerator
-from .models import Registration, RegistrationDetails, RegistrationStatus
+from .models import (
+    Registration, RegistrationStatus,
+    TravelAssistance, MedicalAssistance, TranslationAssistance,
+)
 from .serializers import (
-    RegistrationDetailsSerializer,
     RegistrationSerializer,
     BulkStatusUpdateSerializer,
     LobbyRegistrationSerializer,
+    TravelAssistanceSerializer,
+    MedicalAssistanceSerializer,
+    TranslationAssistanceSerializer,
 )
-from django.utils import timezone
-
 
 class RegistrationViewSet(viewsets.ModelViewSet):
     queryset = (
         Registration.objects
-        .select_related("user", "event", "details")
-        .prefetch_related("participation_dates")
+        .select_related("user", "event", "medical_assistance", "translation_assistance")
+        .prefetch_related("participation_dates", "travel_assistance")
     )
 
     def get_serializer_class(self):
-        if self.action in ["update_status", "update_travel_status", "update_translation_status"]:
+        if self.action in ["bulk_update_status", "bulk_update_travel_status",
+                        "bulk_update_medical_status", "bulk_update_translation_status"]:
             return BulkStatusUpdateSerializer
-        elif self.action in ["registered", "proposed"]:
+        if self.action in ["registered", "proposed"]:
             return LobbyRegistrationSerializer
-        elif self.action == "create_details":
-            return RegistrationDetailsSerializer
-
+        if self.action == "request_travel":
+            return TravelAssistanceSerializer
+        if self.action == "request_medical":
+            return MedicalAssistanceSerializer
+        if self.action == "request_translation":
+            return TranslationAssistanceSerializer
         return RegistrationSerializer
 
     def get_permissions(self):
-        if self.action in ["create", "my_registrations"]:
+        if self.action in [
+            "create",
+            "my_registrations",
+            "request_travel",
+            "request_medical",
+            "request_translation",
+        ]:
             return [IsAuthenticated()]
         return [IsModerator()]
 
@@ -48,19 +62,49 @@ class RegistrationViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(event_id=event_id)
 
         return queryset
+    
+    # Inside RegistrationViewSet
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated], url_path="request-travel")
+    def request_travel(self, request, pk=None):
+        registration = self.get_object()
+        serializer = TravelAssistanceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(registration=registration, status=ApprovalStatus.PENDING)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    def perform_create(self, serializer):
-        serializer.save()
-        
-    @action(detail=True, methods=["post"], url_path="s")
-    def create_details(self, request, pk=None):
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated], url_path="request-medical")
+    def request_medical(self, request, pk=None):
         registration = self.get_object()
 
-        serializer = RegistrationDetailsSerializer(data=request.data)
+        if hasattr(registration, "medical_assistance"):
+            return Response(
+                {"detail": "Medical assistance has already been requested for this registration."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = MedicalAssistanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(registration=registration)
+        serializer.save(registration=registration, status=ApprovalStatus.PENDING)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
+
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated], url_path="request-translation")
+    def request_translation(self, request, pk=None):
+        registration = self.get_object()
+
+        if hasattr(registration, "translation_assistance"):
+            return Response(
+                {"detail": "Translation assistance has already been requested for this registration."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = TranslationAssistanceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(registration=registration, status=ApprovalStatus.PENDING)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated], url_path="my")
     def my_registrations(self, request):
         serializer = self.get_serializer(self.get_queryset(), many=True)
@@ -73,29 +117,21 @@ class RegistrationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["patch"], permission_classes=[IsModerator], url_path="bulk-status")
     def bulk_update_status(self, request):
-        return self._bulk_update_registration(
-            request,
-            field_name="status",
-        )
+        return self._bulk_update(request, Registration, "status")
 
     @action(detail=False, methods=["patch"], permission_classes=[IsModerator], url_path="bulk-travel-status")
     def bulk_update_travel_status(self, request):
-        return self._bulk_update_registration(
-            request,
-            field_name="travel_status",
-        )
+        return self._bulk_update(request, TravelAssistance, "status", fk="registration_id")
+
+    @action(detail=False, methods=["patch"], permission_classes=[IsModerator], url_path="bulk-medical-status")
+    def bulk_update_medical_status(self, request):
+        return self._bulk_update(request, MedicalAssistance, "status", fk="registration_id")
 
     @action(detail=False, methods=["patch"], permission_classes=[IsModerator], url_path="bulk-translation-status")
     def bulk_update_translation_status(self, request):
-        return self._bulk_update_registration(
-            request,
-            field_name="translation_status",
-        )
+        return self._bulk_update(request, TranslationAssistance, "status", fk="registration_id")
 
-    # Fields that now live on RegistrationDetails instead of Registration
-    DETAILS_FIELDS = {"travel_status", "translation_status"}
-
-    def _bulk_update_registration(self, request, field_name):
+    def _bulk_update(self, request, model, field_name, fk=None):
         serializer = BulkStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -103,35 +139,25 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         value = serializer.validated_data["status"]
         now = timezone.now()
 
-        if field_name in self.DETAILS_FIELDS:
-            updated = RegistrationDetails.objects.filter(
-                registration_id__in=ids
-            ).update(
-                **{field_name: value, "updated_at": now}
-            )
-            # Keep the parent Registration's updated_at in sync for any
-            # rows that actually had a details record to update.
-            Registration.objects.filter(
-                id__in=ids, details__isnull=False
-            ).update(updated_at=now)
-        else:
-            updated = Registration.objects.filter(id__in=ids).update(
-                **{field_name: value, "updated_at": now}
-            )
+        filter_kwarg = {f"{fk}__in" if fk else "id__in": ids}
+        updated = model.objects.filter(**filter_kwarg).update(
+            **{field_name: value, "updated_at": now}
+        )
+
+        # Keep parent Registration timestamps in sync for assistance models
+        if fk:
+            Registration.objects.filter(id__in=ids).update(updated_at=now)
 
         return Response(
-            {
-                "message": f"{updated} registrations updated successfully.",
-                "updated_count": updated,
-            },
+            {"message": f"{updated} records updated successfully.", "updated_count": updated},
             status=status.HTTP_200_OK,
         )
 
     def _lobby_queryset(self, event_id, **filters):
         return (
             Registration.objects
-            .select_related("user", "details")
-            .prefetch_related("participation_dates")
+            .select_related("user", "medical_assistance", "translation_assistance")
+            .prefetch_related("participation_dates", "travel_assistance")
             .filter(event_id=event_id, **filters)
         )
 

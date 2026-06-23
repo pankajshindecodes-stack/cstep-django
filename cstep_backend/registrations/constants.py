@@ -15,7 +15,7 @@ class FoodPreference(models.TextChoices):
     NON_VEG_CHICKEN = "NON_VEG_CHICKEN", "Non Veg (Chicken Only)"
     NON_VEG_ANY = "NON_VEG_ANY", "Non Veg (Any)"
 
-class TravelArrangement(models.TextChoices):
+class TransportMode(models.TextChoices):
     FLIGHT_TAXI_HOTEL = "FLIGHT_TAXI_HOTEL", "Flight + Taxi + Hotel"
     TAXI_HOTEL = "TAXI_HOTEL", "Taxi + Hotel"
     HOTEL_ONLY = "HOTEL_ONLY", "Hotel Only"
