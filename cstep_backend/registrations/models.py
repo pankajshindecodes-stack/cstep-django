@@ -1,236 +1,146 @@
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from django.utils import timezone
-from django.shortcuts import get_object_or_404
-
-from accounts.permissions import IsModerator
-from .models import (
-    Registration, RegistrationStatus,
-    TravelAssistance, MedicalAssistance, TranslationAssistance, Event
-)
-from .serializers import (
-    RegistrationSerializer,
-    BulkStatusUpdateSerializer,
-    LobbyRegistrationSerializer,
-    TravelAssistanceSerializer,
-    MedicalAssistanceSerializer,
-    TranslationAssistanceSerializer,
+from django.db import models
+from django.conf import settings
+from events.models import Event
+from .constants import (
+    FoodPreference,
+    TransportMode,
+    MedicalSupportType,
+    TranslationLanguage,
+    ParticipationTime,
+    RegistrationStatus,
+    ApprovalStatus,
+    AttendanceMode
 )
 
-
-class RegistrationViewSet(viewsets.ModelViewSet):
-    queryset = (
-        Registration.objects
-        .select_related("user", "event", "medical_assistance", "translation_assistance")
-        .prefetch_related("participation_dates", "travel_assistance")
+class ParticipationDate(models.Model):
+    registration = models.ForeignKey(
+        "Registration",
+        on_delete=models.CASCADE,
+        related_name="participation_dates",
     )
+    date = models.DateField()
+    
 
-    def get_serializer_class(self):
-        if self.action in [
-            "bulk_update_status", "bulk_update_travel_status",
-            "bulk_update_medical_status", "bulk_update_translation_status",
-        ]:
-            return BulkStatusUpdateSerializer
-        if self.action in ["registered", "proposed"]:
-            return LobbyRegistrationSerializer
-        if self.action == "request_travel":
-            return TravelAssistanceSerializer
-        if self.action == "request_medical":
-            return MedicalAssistanceSerializer
-        if self.action == "request_translation":
-            return TranslationAssistanceSerializer
-        return RegistrationSerializer
-
-    def get_permissions(self):
-        if self.action in [
-            "create",
-            "my_registrations",
-            "request_travel",
-            "request_medical",
-            "request_translation",
-        ]:
-            return [IsAuthenticated()]
-        return [IsModerator()]
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        if self.action == "my_registrations":
-            return queryset.filter(user=self.request.user)
-        if self.action == "list":
-            event_id = self.request.query_params.get("event_id")
-            if event_id:
-                queryset = queryset.filter(event_id=event_id)
-        return queryset
-
-    def _get_registration_for_user(self, request) -> Registration:
-        """Resolve the user's Registration for the given event_id in request.data."""
-        event = get_object_or_404(Event, id=request.data.get("event_id"))
-        return get_object_or_404(Registration, event=event, user=request.user)
-
-    # ------------------------------------------------------------------ #
-    #  Assistance request endpoints                                        #
-    # ------------------------------------------------------------------ #
-
-    @action(detail=False, methods=["post"], url_path="request-travel")
-    def request_travel(self, request):
-        """
-        TravelAssistance is a FK (multiple rows per registration allowed),
-        so no duplicate guard here — each POST creates a new travel leg.
-        """
-        registration = self._get_registration_for_user(request)
-        serializer = TravelAssistanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(registration=registration)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    @action(detail=False, methods=["post"], url_path="request-medical")
-    def request_medical(self, request):
-        """MedicalAssistance is OneToOne — guard against duplicates."""
-        registration = self._get_registration_for_user(request)
-        if hasattr(registration, "medical_assistance"):
-            return Response(
-                {"detail": "Medical assistance has already been requested for this registration."},
-                status=status.HTTP_400_BAD_REQUEST,
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["registration", "date"],
+                name="unique_registration_date",
             )
-        serializer = MedicalAssistanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(registration=registration)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        ]
+        ordering = ["date"]
 
-    @action(detail=False, methods=["post"], url_path="request-translation")
-    def request_translation(self, request):
-        """TranslationAssistance is OneToOne — guard against duplicates."""
-        registration = self._get_registration_for_user(request)
-        if hasattr(registration, "translation_assistance"):
-            return Response(
-                {"detail": "Translation assistance has already been requested for this registration."},
-                status=status.HTTP_400_BAD_REQUEST,
+    def __str__(self):
+        return f"{self.registration} → {self.date}"
+
+class Registration(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="registrations",
+    )
+    participation_time = models.CharField(
+        max_length=20,
+        choices=ParticipationTime.choices,
+        null=True,
+        blank=True,
+    )
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="registrations",
+    )
+    attendance_mode = models.CharField(
+        max_length=10,
+        choices=AttendanceMode.choices,
+        default=AttendanceMode.UNDECIDED,
+    )
+    food_preference = models.CharField(
+        max_length=20,
+        choices=FoodPreference.choices,
+        null=True,
+        blank=True,
+    )
+    status = models.CharField(
+        max_length=10,
+        choices=RegistrationStatus.choices,
+        default=RegistrationStatus.PENDING,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "event"],
+                name="unique_user_event_registration",
             )
-        serializer = TranslationAssistanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(registration=registration)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        ]
+        ordering = ["-created_at"]
 
-    # ------------------------------------------------------------------ #
-    #  Listing endpoints                                                   #
-    # ------------------------------------------------------------------ #
+    def __str__(self):
+        return f"{self.user} → {self.event} [{self.status}]"
 
-    @action(detail=False, methods=["get"], url_path="my")
-    def my_registrations(self, request):
-        serializer = self.get_serializer(self.get_queryset(), many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=["get"], permission_classes=[IsModerator], url_path="all")
-    def all_registrations(self, request):
-        serializer = self.get_serializer(self.filter_queryset(self.get_queryset()), many=True)
-        return Response(serializer.data)
-
-    # ------------------------------------------------------------------ #
-    #  Bulk status update endpoints                                        #
-    # ------------------------------------------------------------------ #
-
-    @action(detail=False, methods=["patch"], url_path="bulk-status")
-    def bulk_update_status(self, request):
-        """ids = Registration PKs."""
-        return self._bulk_update(request, Registration, field_name="status")
-
-    @action(detail=False, methods=["patch"], url_path="bulk-travel-status")
-    def bulk_update_travel_status(self, request):
-        """
-        ids = Registration PKs.
-        Updates ALL TravelAssistance rows belonging to those registrations.
-        This is intentional: a single registration can have multiple travel
-        legs (FK), and a moderator bulk-approving/rejecting acts on all of them.
-        If you need per-row control, use the TravelAssistance detail endpoint instead.
-        """
-        return self._bulk_update(
-            request, TravelAssistance,
-            field_name="status",
-            filter_field="registration_id__in",   # filter by parent registration PK
-            sync_parent=True,
-        )
-
-    @action(detail=False, methods=["patch"], url_path="bulk-medical-status")
-    def bulk_update_medical_status(self, request):
-        """ids = Registration PKs (OneToOne → one row per registration)."""
-        return self._bulk_update(
-            request, MedicalAssistance,
-            field_name="status",
-            filter_field="registration_id__in",
-            sync_parent=True,
-        )
-
-    @action(detail=False, methods=["patch"], url_path="bulk-translation-status")
-    def bulk_update_translation_status(self, request):
-        """ids = Registration PKs (OneToOne → one row per registration)."""
-        return self._bulk_update(
-            request, TranslationAssistance,
-            field_name="status",
-            filter_field="registration_id__in",
-            sync_parent=True,
-        )
-
-    def _bulk_update(self, request, model, *, field_name, filter_field="id__in", sync_parent=False):
-        """
-        Generic bulk-status updater.
-
-        Args:
-            model:          The model class to update.
-            field_name:     The field to set (always "status" for now).
-            filter_field:   ORM lookup used to scope the queryset.
-                            "id__in"             → ids are the model's own PKs  (Registration)
-                            "registration_id__in" → ids are Registration PKs    (assistance models)
-            sync_parent:    When True, also touch Registration.updated_at so
-                            the parent row reflects the latest change.
-        """
-        serializer = BulkStatusUpdateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        ids = serializer.validated_data["ids"]
-        value = serializer.validated_data["status"]
-        now = timezone.now()
-
-        updated = model.objects.filter(**{filter_field: ids}).update(
-            **{field_name: value, "updated_at": now}
-        )
-
-        if sync_parent:
-            # ids are Registration PKs for all assistance models
-            Registration.objects.filter(id__in=ids).update(updated_at=now)
-
-        return Response(
-            {"message": f"{updated} records updated successfully.", "updated_count": updated},
-            status=status.HTTP_200_OK,
-        )
-
-    # ------------------------------------------------------------------ #
-    #  Lobby endpoints                                                     #
-    # ------------------------------------------------------------------ #
-
-    def _lobby_queryset(self, event_id, **filters):
-        return (
-            Registration.objects
-            .select_related("user", "medical_assistance", "translation_assistance")
-            .prefetch_related("participation_dates", "travel_assistance")
-            .filter(event_id=event_id, **filters)
-        )
-
-    @action(
-        detail=False, methods=["get"], permission_classes=[IsModerator],
-        url_path=r"lobby/(?P<event_id>[^/.]+)/registered",
+class TravelAssistance(models.Model):
+    registration = models.ForeignKey(
+        Registration,
+        on_delete=models.CASCADE,
+        related_name="travel_assistance",
     )
-    def registered(self, request, event_id=None):
-        serializer = LobbyRegistrationSerializer(self._lobby_queryset(event_id), many=True)
-        return Response(serializer.data)
+    transport_mode = models.CharField(max_length=20, choices=TransportMode.choices)
 
-    @action(
-        detail=False, methods=["get"], permission_classes=[IsModerator],
-        url_path=r"lobby/(?P<event_id>[^/.]+)/proposed",
+    # Flight / Train / Taxi
+    source_location = models.CharField(max_length=255, blank=True, default="")
+    destination_location = models.CharField(max_length=255, blank=True, default="")
+    travel_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=10, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Travel ({self.transport_mode}) - {self.registration}"
+
+class MedicalAssistance(models.Model):
+    registration = models.OneToOneField(
+        Registration,
+        on_delete=models.CASCADE,
+        related_name="medical_assistance",
     )
-    def proposed(self, request, event_id=None):
-        serializer = LobbyRegistrationSerializer(
-            self._lobby_queryset(event_id, status=RegistrationStatus.PENDING), many=True
-        )
-        return Response(serializer.data)
+    medical_needs = models.TextField(
+        help_text="e.g. wheelchair accessibility, medications, emergency contact"
+    )
+    date = models.DateField()
+    status = models.CharField(max_length=10, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Medical - {self.registration}"
+
+class TranslationAssistance(models.Model):
+    registration = models.OneToOneField(
+        Registration,
+        on_delete=models.CASCADE,
+        related_name="translation_assistance",
+    )
+    language = models.CharField(max_length=20, choices=TranslationLanguage.choices)
+    date = models.DateField()
+    status = models.CharField(max_length=10, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Translation ({self.language}) - {self.registration}"
