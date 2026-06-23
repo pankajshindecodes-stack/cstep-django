@@ -147,9 +147,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         """
         return self._bulk_update(
             request, TravelAssistance,
-            field_name="status",
-            filter_field="registration_id__in",   # filter by parent registration PK
-            sync_parent=True,
+            field_name="status"
         )
 
     @action(detail=False, methods=["patch"], url_path="bulk-medical-status")
@@ -157,9 +155,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         """ids = Registration PKs (OneToOne → one row per registration)."""
         return self._bulk_update(
             request, MedicalAssistance,
-            field_name="status",
-            filter_field="registration_id__in",
-            sync_parent=True,
+            field_name="status"
         )
 
     @action(detail=False, methods=["patch"], url_path="bulk-translation-status")
@@ -167,12 +163,10 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         """ids = Registration PKs (OneToOne → one row per registration)."""
         return self._bulk_update(
             request, TranslationAssistance,
-            field_name="status",
-            filter_field="registration_id__in",
-            sync_parent=True,
+            field_name="status"
         )
 
-    def _bulk_update(self, request, model, *, field_name, filter_field="id__in", sync_parent=False):
+    def _bulk_update(self, request, model, *, field_name, filter_field="id__in"):
         """
         Generic bulk-status updater.
 
@@ -181,7 +175,6 @@ class RegistrationViewSet(viewsets.ModelViewSet):
             field_name:     The field to set (always "status" for now).
             filter_field:   ORM lookup used to scope the queryset.
                             "id__in"             → ids are the model's own PKs  (Registration)
-                            "registration_id__in" → ids are Registration PKs    (assistance models)
             sync_parent:    When True, also touch Registration.updated_at so
                             the parent row reflects the latest change.
         """
@@ -195,10 +188,6 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         updated = model.objects.filter(**{filter_field: ids}).update(
             **{field_name: value, "updated_at": now}
         )
-
-        if sync_parent:
-            # ids are Registration PKs for all assistance models
-            Registration.objects.filter(id__in=ids).update(updated_at=now)
 
         return Response(
             {"message": f"{updated} records updated successfully.", "updated_count": updated},
