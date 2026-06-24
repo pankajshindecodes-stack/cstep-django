@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User
+from .models import User,UserRole
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -10,12 +10,15 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "salutation", "first_name","role", "middle_name", "last_name",
+            "salutation", "first_name", "middle_name", "last_name",
             "phone_number", "email", "password",
         ]
 
     def create(self, validated_data):
         password = validated_data.pop("password")
+        validated_data["is_active"] = True  
+        validated_data["role"] = UserRole.BASE_USER  
+        
         user = User(**validated_data)
         user.set_password(password)
         user.save()
