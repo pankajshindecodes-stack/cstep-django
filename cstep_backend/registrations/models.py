@@ -4,7 +4,6 @@ from events.models import Event
 from .constants import (
     FoodPreference,
     TransportMode,
-    MedicalSupportType,
     TranslationLanguage,
     ParticipationTime,
     RegistrationStatus,
@@ -82,6 +81,32 @@ class Registration(models.Model):
     def __str__(self):
         return f"{self.user} → {self.event} [{self.status}]"
 
+class AccommodationAssistance(models.Model):
+    registration = models.OneToOneField(
+        Registration,
+        on_delete=models.CASCADE,
+        related_name="accommodation_assistance",
+    )
+    hotel_name = models.CharField(max_length=255)
+    address = models.TextField(null=True, blank=True)
+    room_no = models.CharField(max_length=50, blank=True, default="")
+    from_date = models.DateField()
+    to_date = models.DateField()
+    status = models.CharField(
+        max_length=10,
+        choices=ApprovalStatus.choices,
+        default=ApprovalStatus.PENDING,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Accommodation @ {self.hotel_name} [{self.room_no}] - {self.registration}"
+    
 class TravelAssistance(models.Model):
     registration = models.ForeignKey(
         Registration,

@@ -16,12 +16,9 @@ class FoodPreference(models.TextChoices):
     NON_VEG_ANY = "NON_VEG_ANY", "Non Veg (Any)"
 
 class TransportMode(models.TextChoices):
-    FLIGHT_TAXI_HOTEL = "FLIGHT_TAXI_HOTEL", "Flight + Taxi + Hotel"
-    TAXI_HOTEL = "TAXI_HOTEL", "Taxi + Hotel"
-    HOTEL_ONLY = "HOTEL_ONLY", "Hotel Only"
-    TAXI_ONLY = "TAXI_ONLY", "Taxi Only"
-    FLIGHT_ONLY = "FLIGHT_ONLY", "Flight Only"
-    TRAIN_ONLY = "TRAIN_ONLY", "Train Only"
+    TAXI = "TAXI", "Taxi"
+    FLIGHT = "FLIGHT", "Flight"
+    TRAIN = "TRAIN", "Train"
     SELF_ARRANGED = "SELF_ARRANGED", "Self Arranged"
 
 class MedicalSupportType(models.TextChoices):

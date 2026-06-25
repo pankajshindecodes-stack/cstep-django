@@ -8,7 +8,8 @@ from django.shortcuts import get_object_or_404
 from accounts.permissions import IsModerator
 from .models import (
     Registration, RegistrationStatus,
-    TravelAssistance, MedicalAssistance, TranslationAssistance, Event
+    TravelAssistance, MedicalAssistance, TranslationAssistance, AccommodationAssistance
+
 )
 from .serializers import (
     RegistrationSerializer,
@@ -17,13 +18,13 @@ from .serializers import (
     TravelAssistanceSerializer,
     MedicalAssistanceSerializer,
     TranslationAssistanceSerializer,
+    AccommodationAssistanceSerializer,
 )
-
 
 class RegistrationViewSet(viewsets.ModelViewSet):
     queryset = (
         Registration.objects
-        .select_related("user", "event", "medical_assistance", "translation_assistance")
+        .select_related("user", "event", "medical_assistance", "translation_assistance", "accommodation_assistance")
         .prefetch_related("participation_dates", "travel_assistance")
     )
 
@@ -31,6 +32,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         if self.action in [
             "bulk_update_status", "bulk_update_travel_status",
             "bulk_update_medical_status", "bulk_update_translation_status",
+            "bulk_update_accommodation_status",
         ]:
             return BulkStatusUpdateSerializer
         if self.action in ["registered", "proposed"]:
@@ -41,6 +43,8 @@ class RegistrationViewSet(viewsets.ModelViewSet):
             return MedicalAssistanceSerializer
         if self.action == "request_translation":
             return TranslationAssistanceSerializer
+        if self.action == "request_accommodation":
+            return AccommodationAssistanceSerializer
         return RegistrationSerializer
 
     def get_permissions(self):
@@ -50,6 +54,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
             "request_travel",
             "request_medical",
             "request_translation",
+            "request_accommodation",
         ]:
             return [IsAuthenticated()]
         return [IsModerator()]
@@ -64,54 +69,67 @@ class RegistrationViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(event_id=event_id)
         return queryset
 
-    def _get_registration_for_user(self, request) -> Registration:
-        """Resolve the user's Registration for the given event_id in request.data."""
-        event = get_object_or_404(Event, id=request.data.get("event_id"))
-        return get_object_or_404(Registration, event=event, user=request.user)
-
     # ------------------------------------------------------------------ #
     #  Assistance request endpoints                                        #
     # ------------------------------------------------------------------ #
 
+    def _create_assistance(self, request, duplicate_attr=None, duplicate_msg=None):
+        """
+        Generic assistance creator. Delegates event_id + user resolution
+        entirely to the serializer's validate(). Optionally guards OneToOne
+        duplicates before hitting the DB.
+
+        Args:
+            duplicate_attr:  related_name to check on registration (e.g. "medical_assistance").
+                             Pass None for FK-based assistance (TravelAssistance).
+            duplicate_msg:   Error message returned on duplicate.
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # validated_data already has `registration` resolved by the serializer
+        if duplicate_attr:
+            registration = serializer.validated_data["registration"]
+            if hasattr(registration, duplicate_attr):
+                return Response(
+                    {"detail": duplicate_msg},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     @action(detail=False, methods=["post"], url_path="request-travel")
     def request_travel(self, request):
-        """
-        TravelAssistance is a FK (multiple rows per registration allowed),
-        so no duplicate guard here — each POST creates a new travel leg.
-        """
-        registration = self._get_registration_for_user(request)
-        serializer = TravelAssistanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(registration=registration)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        """TravelAssistance is FK — multiple legs per registration allowed."""
+        return self._create_assistance(request)
 
     @action(detail=False, methods=["post"], url_path="request-medical")
     def request_medical(self, request):
-        """MedicalAssistance is OneToOne — guard against duplicates."""
-        registration = self._get_registration_for_user(request)
-        if hasattr(registration, "medical_assistance"):
-            return Response(
-                {"detail": "Medical assistance has already been requested for this registration."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        serializer = MedicalAssistanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(registration=registration)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        """MedicalAssistance is OneToOne — guard duplicates."""
+        return self._create_assistance(
+            request,
+            duplicate_attr="medical_assistance",
+            duplicate_msg="Medical assistance has already been requested for this registration.",
+        )
 
     @action(detail=False, methods=["post"], url_path="request-translation")
     def request_translation(self, request):
-        """TranslationAssistance is OneToOne — guard against duplicates."""
-        registration = self._get_registration_for_user(request)
-        if hasattr(registration, "translation_assistance"):
-            return Response(
-                {"detail": "Translation assistance has already been requested for this registration."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        serializer = TranslationAssistanceSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(registration=registration)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        """TranslationAssistance is OneToOne — guard duplicates."""
+        return self._create_assistance(
+            request,
+            duplicate_attr="translation_assistance",
+            duplicate_msg="Translation assistance has already been requested for this registration.",
+        )
+
+    @action(detail=False, methods=["post"], url_path="request-accommodation")
+    def request_accommodation(self, request):
+        """AccommodationAssistance is OneToOne — guard duplicates."""
+        return self._create_assistance(
+            request,
+            duplicate_attr="accommodation_assistance",
+            duplicate_msg="Accommodation assistance has already been requested for this registration.",
+        )
 
     # ------------------------------------------------------------------ #
     #  Listing endpoints                                                   #
@@ -131,59 +149,13 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     #  Bulk status update endpoints                                        #
     # ------------------------------------------------------------------ #
 
-    @action(detail=False, methods=["patch"], url_path="bulk-status")
-    def bulk_update_status(self, request):
-        """ids = Registration PKs."""
-        return self._bulk_update(request, Registration, field_name="status")
-
-    @action(detail=False, methods=["patch"], url_path="bulk-travel-status")
-    def bulk_update_travel_status(self, request):
-        """
-        ids = Registration PKs.
-        Updates ALL TravelAssistance rows belonging to those registrations.
-        This is intentional: a single registration can have multiple travel
-        legs (FK), and a moderator bulk-approving/rejecting acts on all of them.
-        If you need per-row control, use the TravelAssistance detail endpoint instead.
-        """
-        return self._bulk_update(
-            request, TravelAssistance,
-            field_name="status"
-        )
-
-    @action(detail=False, methods=["patch"], url_path="bulk-medical-status")
-    def bulk_update_medical_status(self, request):
-        """ids = Registration PKs (OneToOne → one row per registration)."""
-        return self._bulk_update(
-            request, MedicalAssistance,
-            field_name="status"
-        )
-
-    @action(detail=False, methods=["patch"], url_path="bulk-translation-status")
-    def bulk_update_translation_status(self, request):
-        """ids = Registration PKs (OneToOne → one row per registration)."""
-        return self._bulk_update(
-            request, TranslationAssistance,
-            field_name="status"
-        )
-
-    def _bulk_update(self, request, model, *, field_name, filter_field="id__in"):
-        """
-        Generic bulk-status updater.
-
-        Args:
-            model:          The model class to update.
-            field_name:     The field to set (always "status" for now).
-            filter_field:   ORM lookup used to scope the queryset.
-                            "id__in"             → ids are the model's own PKs  (Registration)
-            sync_parent:    When True, also touch Registration.updated_at so
-                            the parent row reflects the latest change.
-        """
+    def _bulk_update(self, request, model, *, field_name="status", filter_field="id__in"):
         serializer = BulkStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        ids = serializer.validated_data["ids"]
-        value = serializer.validated_data["status"]
-        now = timezone.now()
+        ids    = serializer.validated_data["ids"]
+        value  = serializer.validated_data["status"]
+        now    = timezone.now()
 
         updated = model.objects.filter(**{filter_field: ids}).update(
             **{field_name: value, "updated_at": now}
@@ -194,6 +166,26 @@ class RegistrationViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=False, methods=["patch"], url_path="bulk-status")
+    def bulk_update_status(self, request):
+        return self._bulk_update(request, Registration)
+
+    @action(detail=False, methods=["patch"], url_path="bulk-travel-status")
+    def bulk_update_travel_status(self, request):
+        return self._bulk_update(request, TravelAssistance)
+
+    @action(detail=False, methods=["patch"], url_path="bulk-medical-status")
+    def bulk_update_medical_status(self, request):
+        return self._bulk_update(request, MedicalAssistance)
+
+    @action(detail=False, methods=["patch"], url_path="bulk-translation-status")
+    def bulk_update_translation_status(self, request):
+        return self._bulk_update(request, TranslationAssistance)
+
+    @action(detail=False, methods=["patch"], url_path="bulk-accommodation-status")
+    def bulk_update_accommodation_status(self, request):
+        return self._bulk_update(request, AccommodationAssistance)
+
     # ------------------------------------------------------------------ #
     #  Lobby endpoints                                                     #
     # ------------------------------------------------------------------ #
@@ -201,7 +193,7 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     def _lobby_queryset(self, event_id, **filters):
         return (
             Registration.objects
-            .select_related("user", "medical_assistance", "translation_assistance")
+            .select_related("user", "medical_assistance", "translation_assistance", "accommodation_assistance")
             .prefetch_related("participation_dates", "travel_assistance")
             .filter(event_id=event_id, **filters)
         )
