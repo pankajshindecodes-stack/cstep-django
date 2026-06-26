@@ -77,6 +77,18 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     def my_registrations(self, request):
         serializer = self.get_serializer(self.get_queryset(), many=True)
         return Response(serializer.data)
+    
+    @action(detail=False, methods=["patch"], url_path="bulk-status", permission_classes=[IsModerator])
+    def bulk_update_status(self, request):
+        serializer = BulkStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        updated = (
+            self.get_queryset()
+            .filter(id__in=serializer.validated_data["ids"])
+            .update(status=serializer.validated_data["status"], updated_at=timezone.now())
+        )
+        return Response({"message": f"{updated} records updated.", "updated_count": updated})
+
 
 
 class TravelAssistanceViewSet(viewsets.ModelViewSet):
