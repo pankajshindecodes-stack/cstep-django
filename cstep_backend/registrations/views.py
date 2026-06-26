@@ -116,17 +116,15 @@ class TravelAssistanceViewSet(viewsets.ModelViewSet):
     ]
     ordering = ["-created_at"]
     # ---------------------------------
-
     def get_permissions(self):
-        if self.action in ["bulk_update_status"]:
-            return [IsModerator()]
-        return [IsAuthenticated()]
-
+        if self.action in ["create"]: # "update", "partial_update", "destroy"
+            return [IsAuthenticated()]
+        return [IsModerator()]
+        
     def get_queryset(self):
         queryset = super().get_queryset()
-      
         if self.request.user.role == UserRole.BASE_USER and self.action == "list":
-            return queryset.filter(registration__user=self.request.user)
+            raise PermissionDenied("You do not have permission to access this API.")
         return queryset
 
     @action(detail=False, methods=["patch"], url_path="bulk-status", permission_classes=[IsModerator])
@@ -181,8 +179,8 @@ class MedicalAssistanceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.action == "list":
-            return queryset.filter(registration__user=self.request.user)
+        if self.request.user.role == UserRole.BASE_USER and self.action == "list":
+            raise PermissionDenied("You do not have permission to access this API.")
         return queryset
 
     @action(detail=False, methods=["patch"], url_path="bulk-status", permission_classes=[IsModerator])
@@ -238,8 +236,8 @@ class TranslationAssistanceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.action == "list":
-            return queryset.filter(registration__user=self.request.user)
+        if self.request.user.role == UserRole.BASE_USER and self.action == "list":
+            raise PermissionDenied("You do not have permission to access this API.")
         return queryset
 
     @action(detail=False, methods=["patch"], url_path="bulk-status", permission_classes=[IsModerator])
@@ -298,8 +296,8 @@ class AccommodationAssistanceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        if self.action == "list":
-            return queryset.filter(registration__user=self.request.user)
+        if self.request.user.role == UserRole.BASE_USER and self.action == "list":
+            raise PermissionDenied("You do not have permission to access this API.")
         return queryset
 
     @action(detail=False, methods=["patch"], url_path="bulk-status", permission_classes=[IsModerator])
