@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueTogetherValidator
-from accounts.models import User 
+from accounts.models import User
+from accounts.permissions import IsModerator 
 from .models import (
     AccommodationAssistance, Registration, ParticipationDate,
     TravelAssistance, MedicalAssistance, TranslationAssistance,Event
@@ -11,53 +12,83 @@ class EventDropdownSerializer(serializers.ModelSerializer):
         fields = ["id", "title"]
 
 class AssistanceBaseSerializer(serializers.ModelSerializer):
+    one_to_one_models = (MedicalAssistance, TranslationAssistance, AccommodationAssistance)
     event_id = serializers.IntegerField(write_only=True)
     user_id = serializers.IntegerField(write_only=True, required=False)
-
-    def validate(self, attrs):
-        event_id = attrs.pop("event_id")
-        user_id = attrs.pop("user_id", None)
-
-        if user_id is None:
-            request = self.context.get("request")
-            user_id = request.user.id
-
-        try:
-            registration = Registration.objects.get(
-                event_id=event_id,
-                user_id=user_id,
-            )
-        except Registration.DoesNotExist:
-            raise serializers.ValidationError(
-                "No registration found for this user and event."
-            )
-
-        attrs["registration"] = registration
-        return attrs
+    event_name = serializers.CharField(source="registration.event.title", read_only=True)
+    user_name = serializers.CharField(source="registration.user.full_name", read_only=True)
     
+    def validate(self, attrs):
+        request = self.context.get("request")
+        model = self.Meta.model
+        
+        if not self.instance:
+            event_id = attrs.pop("event_id", None)
+            user_id = attrs.pop("user_id", None) or (request.user.id if request else None)
+
+            if not event_id:
+                raise serializers.ValidationError({"event_id": "This field is required for creation."})
+
+            try:
+                registration = Registration.objects.get(event_id=event_id, user_id=user_id)
+            except Registration.DoesNotExist:
+                raise serializers.ValidationError(
+                    "No registration found for this user and event."
+                )
+
+            # Prevent duplicate creation for one-to-one models
+            if model in self.one_to_one_models:
+                if model.objects.filter(registration=registration).exists():
+                    raise serializers.ValidationError(
+                        f"{model.__name__} already requested for this registration."
+                    )
+            
+            attrs["registration"] = registration
+        return attrs
+
+
 class AccommodationAssistanceSerializer(AssistanceBaseSerializer):
     class Meta:
-        model = AccommodationAssistance
-        fields = ["id", "event_id", "user_id", "hotel_name", "address", "room_no", "from_date", "to_date", "status"]
-        read_only_fields = ["id", "status"]
+        model  = AccommodationAssistance
+        fields = [
+            "id", "event_id", "user_id",
+            "event_name", "user_name",
+            "hotel_name", "address", "room_no",
+            "from_date", "to_date", "status",
+        ]
+        read_only_fields = ["id", "status", "created_at", "updated_at"]
 
 class TravelAssistanceSerializer(AssistanceBaseSerializer):
     class Meta:
-        model = TravelAssistance
-        fields = ["id", "event_id", "user_id", "transport_mode", "source_location", "destination_location", "travel_date", "status"]
-        read_only_fields = ["id", "status"]
+        model  = TravelAssistance
+        fields = [
+            "id", "event_id", "user_id",
+            "event_name","user_name",
+            "transport_mode", "source_location",
+            "destination_location", "travel_date",
+            "status"
+        ]
+        read_only_fields = ["id", "status", "created_at", "updated_at"]
 
 class MedicalAssistanceSerializer(AssistanceBaseSerializer):
     class Meta:
-        model = MedicalAssistance
-        fields = ["id", "event_id", "user_id", "medical_needs", "date", "status"]
-        read_only_fields = ["id", "status"]
+        model  = MedicalAssistance
+        fields = [
+            "id", "event_id", "user_id",
+            "event_name", "user_name",
+            "medical_needs", "date", "status",
+        ]
+        read_only_fields = ["id", "status", "created_at", "updated_at"]
 
 class TranslationAssistanceSerializer(AssistanceBaseSerializer):
     class Meta:
-        model = TranslationAssistance
-        fields = ["id", "event_id", "user_id", "language", "date", "status"]
-        read_only_fields = ["id", "status"]
+        model  = TranslationAssistance
+        fields = [
+            "id", "event_id", "user_id",
+            "event_name", "user_name",
+            "language", "date", "status",
+        ]
+        read_only_fields = ["id", "status", "created_at", "updated_at"]
 
 class RegistrationSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(
@@ -137,7 +168,6 @@ class RegistrationSerializer(serializers.ModelSerializer):
 class BulkStatusUpdateSerializer(serializers.Serializer):
     ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
     status = serializers.CharField()
-
 
 class LobbyRegistrationSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source="user.full_name", read_only=True)

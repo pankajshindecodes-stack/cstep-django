@@ -106,7 +106,7 @@ class AccommodationAssistance(models.Model):
 
     def __str__(self):
         return f"Accommodation @ {self.hotel_name} [{self.room_no}] - {self.registration}"
-    
+
 class TravelAssistance(models.Model):
     registration = models.ForeignKey(
         Registration,

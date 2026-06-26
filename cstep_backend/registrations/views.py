@@ -6,10 +6,10 @@ from django.utils import timezone
 from django.shortcuts import get_object_or_404
 
 from accounts.permissions import IsModerator
+from accounts.models import UserRole, User
 from .models import (
     Registration, RegistrationStatus,
     TravelAssistance, MedicalAssistance, TranslationAssistance, AccommodationAssistance
-
 )
 from .serializers import (
     RegistrationSerializer,
@@ -21,6 +21,7 @@ from .serializers import (
     AccommodationAssistanceSerializer,
 )
 
+
 class RegistrationViewSet(viewsets.ModelViewSet):
     queryset = (
         Registration.objects
@@ -28,34 +29,44 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         .prefetch_related("participation_dates", "travel_assistance")
     )
 
+    filterset_fields = {
+        "status":           ["exact", "in"],
+        "attendance_mode":  ["exact"],
+        "food_preference":  ["exact"],
+        "participation_time": ["exact"],
+        "event":            ["exact"],           # filter by event id
+        "event__title":     ["exact", "icontains"],
+        "user":             ["exact"],
+        "created_at":       ["date", "gte", "lte"],
+    }
+
+    search_fields = [
+        "user__email",
+        "user__first_name",
+        "user__last_name",
+        "event__title",
+    ]
+
+    ordering_fields = [
+        "created_at",
+        "updated_at",
+        "status",
+        "event__title",
+        "user__email",
+    ]
+    ordering = ["-created_at"]   # default
+
+    # ---------------------------------
+
     def get_serializer_class(self):
-        if self.action in [
-            "bulk_update_status", "bulk_update_travel_status",
-            "bulk_update_medical_status", "bulk_update_translation_status",
-            "bulk_update_accommodation_status",
-        ]:
+        if self.action == "bulk_update_status":
             return BulkStatusUpdateSerializer
         if self.action in ["registered", "proposed"]:
             return LobbyRegistrationSerializer
-        if self.action == "request_travel":
-            return TravelAssistanceSerializer
-        if self.action == "request_medical":
-            return MedicalAssistanceSerializer
-        if self.action == "request_translation":
-            return TranslationAssistanceSerializer
-        if self.action == "request_accommodation":
-            return AccommodationAssistanceSerializer
         return RegistrationSerializer
 
     def get_permissions(self):
-        if self.action in [
-            "create",
-            "my_registrations",
-            "request_travel",
-            "request_medical",
-            "request_translation",
-            "request_accommodation",
-        ]:
+        if self.action in ["create", "my_registrations"]:
             return [IsAuthenticated()]
         return [IsModerator()]
 
@@ -63,155 +74,241 @@ class RegistrationViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         if self.action == "my_registrations":
             return queryset.filter(user=self.request.user)
-        if self.action == "list":
-            event_id = self.request.query_params.get("event_id")
-            if event_id:
-                queryset = queryset.filter(event_id=event_id)
         return queryset
-
-    # ------------------------------------------------------------------ #
-    #  Assistance request endpoints                                        #
-    # ------------------------------------------------------------------ #
-
-    def _create_assistance(self, request, duplicate_attr=None, duplicate_msg=None):
-        """
-        Generic assistance creator. Delegates event_id + user resolution
-        entirely to the serializer's validate(). Optionally guards OneToOne
-        duplicates before hitting the DB.
-
-        Args:
-            duplicate_attr:  related_name to check on registration (e.g. "medical_assistance").
-                             Pass None for FK-based assistance (TravelAssistance).
-            duplicate_msg:   Error message returned on duplicate.
-        """
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        # validated_data already has `registration` resolved by the serializer
-        if duplicate_attr:
-            registration = serializer.validated_data["registration"]
-            if hasattr(registration, duplicate_attr):
-                return Response(
-                    {"detail": duplicate_msg},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    @action(detail=False, methods=["post"], url_path="request-travel")
-    def request_travel(self, request):
-        """TravelAssistance is FK — multiple legs per registration allowed."""
-        return self._create_assistance(request)
-
-    @action(detail=False, methods=["post"], url_path="request-medical")
-    def request_medical(self, request):
-        """MedicalAssistance is OneToOne — guard duplicates."""
-        return self._create_assistance(
-            request,
-            duplicate_attr="medical_assistance",
-            duplicate_msg="Medical assistance has already been requested for this registration.",
-        )
-
-    @action(detail=False, methods=["post"], url_path="request-translation")
-    def request_translation(self, request):
-        """TranslationAssistance is OneToOne — guard duplicates."""
-        return self._create_assistance(
-            request,
-            duplicate_attr="translation_assistance",
-            duplicate_msg="Translation assistance has already been requested for this registration.",
-        )
-
-    @action(detail=False, methods=["post"], url_path="request-accommodation")
-    def request_accommodation(self, request):
-        """AccommodationAssistance is OneToOne — guard duplicates."""
-        return self._create_assistance(
-            request,
-            duplicate_attr="accommodation_assistance",
-            duplicate_msg="Accommodation assistance has already been requested for this registration.",
-        )
-
-    # ------------------------------------------------------------------ #
-    #  Listing endpoints                                                   #
-    # ------------------------------------------------------------------ #
 
     @action(detail=False, methods=["get"], url_path="my")
     def my_registrations(self, request):
         serializer = self.get_serializer(self.get_queryset(), many=True)
         return Response(serializer.data)
 
-    @action(detail=False, methods=["get"], permission_classes=[IsModerator], url_path="all")
-    def all_registrations(self, request):
-        serializer = self.get_serializer(self.filter_queryset(self.get_queryset()), many=True)
-        return Response(serializer.data)
 
-    # ------------------------------------------------------------------ #
-    #  Bulk status update endpoints                                        #
-    # ------------------------------------------------------------------ #
+class TravelAssistanceViewSet(viewsets.ModelViewSet):
+    serializer_class = TravelAssistanceSerializer
+    queryset = (
+        TravelAssistance.objects
+        .select_related("registration__user", "registration__event")
+    )
 
-    def _bulk_update(self, request, model, *, field_name="status", filter_field="id__in"):
+    filterset_fields = {
+        "status":                       ["exact", "in"],
+        "transport_mode":               ["exact", "in"],
+        "travel_date":                  ["exact", "gte", "lte"],
+        "registration":                 ["exact"],
+        "registration__event":          ["exact"],
+        "registration__status":         ["exact"],
+    }
+
+    search_fields = [
+        "source_location",
+        "destination_location",
+        "registration__user__email",
+        "registration__user__first_name",
+        "registration__user__last_name",
+        "registration__event__title",
+    ]
+
+    ordering_fields = [
+        "travel_date",
+        "status",
+        "transport_mode",
+        "created_at",
+        "updated_at",
+    ]
+    ordering = ["-created_at"]
+    # ---------------------------------
+
+    def get_permissions(self):
+        if self.action in ["bulk_update_status"]:
+            return [IsModerator()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+      
+        if self.request.role == UserRole.BASE_USER and self.action == "list":
+            return queryset.filter(registration__user=self.request.user)
+        return queryset
+
+    @action(detail=False, methods=["patch"], url_path="bulk-status", permission_classes=[IsModerator])
+    def bulk_update_status(self, request):
+        """Bulk update the status of multiple TravelAssistance records."""
         serializer = BulkStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        ids    = serializer.validated_data["ids"]
-        value  = serializer.validated_data["status"]
-        now    = timezone.now()
-
-        updated = model.objects.filter(**{filter_field: ids}).update(
-            **{field_name: value, "updated_at": now}
+        updated = (
+            self.get_queryset()
+            .filter(id__in=serializer.validated_data["ids"])
+            .update(status=serializer.validated_data["status"], updated_at=timezone.now())
         )
+        return Response({"message": f"{updated} records updated.", "updated_count": updated})
 
-        return Response(
-            {"message": f"{updated} records updated successfully.", "updated_count": updated},
-            status=status.HTTP_200_OK,
-        )
 
-    @action(detail=False, methods=["patch"], url_path="bulk-status")
+class MedicalAssistanceViewSet(viewsets.ModelViewSet):
+    serializer_class = MedicalAssistanceSerializer
+    queryset = (
+        MedicalAssistance.objects
+        .select_related("registration__user", "registration__event")
+    )
+
+    filterset_fields = {
+        "status":                   ["exact", "in"],
+        "date":                     ["exact", "gte", "lte"],
+        "registration":             ["exact"],
+        "registration__event":      ["exact"],
+        "registration__status":     ["exact"],
+    }
+
+    search_fields = [
+        "medical_needs",
+        "registration__user__email",
+        "registration__user__first_name",
+        "registration__user__last_name",
+        "registration__event__title",
+    ]
+
+    ordering_fields = [
+        "date",
+        "status",
+        "created_at",
+        "updated_at",
+    ]
+    ordering = ["-created_at"]
+    # ---------------------------------
+
+    def get_permissions(self):
+        if self.action in ["bulk_update_status"]:
+            return [IsModerator()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action == "list":
+            return queryset.filter(registration__user=self.request.user)
+        return queryset
+
+    @action(detail=False, methods=["patch"], url_path="bulk-status", permission_classes=[IsModerator])
     def bulk_update_status(self, request):
-        return self._bulk_update(request, Registration)
-
-    @action(detail=False, methods=["patch"], url_path="bulk-travel-status")
-    def bulk_update_travel_status(self, request):
-        return self._bulk_update(request, TravelAssistance)
-
-    @action(detail=False, methods=["patch"], url_path="bulk-medical-status")
-    def bulk_update_medical_status(self, request):
-        return self._bulk_update(request, MedicalAssistance)
-
-    @action(detail=False, methods=["patch"], url_path="bulk-translation-status")
-    def bulk_update_translation_status(self, request):
-        return self._bulk_update(request, TranslationAssistance)
-
-    @action(detail=False, methods=["patch"], url_path="bulk-accommodation-status")
-    def bulk_update_accommodation_status(self, request):
-        return self._bulk_update(request, AccommodationAssistance)
-
-    # ------------------------------------------------------------------ #
-    #  Lobby endpoints                                                     #
-    # ------------------------------------------------------------------ #
-
-    def _lobby_queryset(self, event_id, **filters):
-        return (
-            Registration.objects
-            .select_related("user", "medical_assistance", "translation_assistance", "accommodation_assistance")
-            .prefetch_related("participation_dates", "travel_assistance")
-            .filter(event_id=event_id, **filters)
+        serializer = BulkStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        updated = (
+            self.get_queryset()
+            .filter(id__in=serializer.validated_data["ids"])
+            .update(status=serializer.validated_data["status"], updated_at=timezone.now())
         )
+        return Response({"message": f"{updated} records updated.", "updated_count": updated})
 
-    @action(
-        detail=False, methods=["get"], permission_classes=[IsModerator],
-        url_path=r"lobby/(?P<event_id>[^/.]+)/registered",
-    )
-    def registered(self, request, event_id=None):
-        serializer = LobbyRegistrationSerializer(self._lobby_queryset(event_id), many=True)
-        return Response(serializer.data)
 
-    @action(
-        detail=False, methods=["get"], permission_classes=[IsModerator],
-        url_path=r"lobby/(?P<event_id>[^/.]+)/proposed",
+class TranslationAssistanceViewSet(viewsets.ModelViewSet):
+    serializer_class = TranslationAssistanceSerializer
+    queryset = (
+        TranslationAssistance.objects
+        .select_related("registration__user", "registration__event")
     )
-    def proposed(self, request, event_id=None):
-        serializer = LobbyRegistrationSerializer(
-            self._lobby_queryset(event_id, status=RegistrationStatus.PENDING), many=True
+
+    filterset_fields = {
+        "status":                   ["exact", "in"],
+        "language":                 ["exact", "in"],
+        "date":                     ["exact", "gte", "lte"],
+        "registration":             ["exact"],
+        "registration__event":      ["exact"],
+        "registration__status":     ["exact"],
+    }
+
+    search_fields = [
+        "language",
+        "registration__user__email",
+        "registration__user__first_name",
+        "registration__user__last_name",
+        "registration__event__title",
+    ]
+
+    ordering_fields = [
+        "date",
+        "language",
+        "status",
+        "created_at",
+        "updated_at",
+    ]
+    ordering = ["-created_at"]
+    # ---------------------------------
+
+    def get_permissions(self):
+        if self.action in ["bulk_update_status"]:
+            return [IsModerator()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action == "list":
+            return queryset.filter(registration__user=self.request.user)
+        return queryset
+
+    @action(detail=False, methods=["patch"], url_path="bulk-status", permission_classes=[IsModerator])
+    def bulk_update_status(self, request):
+        serializer = BulkStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        updated = (
+            self.get_queryset()
+            .filter(id__in=serializer.validated_data["ids"])
+            .update(status=serializer.validated_data["status"], updated_at=timezone.now())
         )
-        return Response(serializer.data)
+        return Response({"message": f"{updated} records updated.", "updated_count": updated})
+
+
+class AccommodationAssistanceViewSet(viewsets.ModelViewSet):
+    serializer_class = AccommodationAssistanceSerializer
+    queryset = (
+        AccommodationAssistance.objects
+        .select_related("registration__user", "registration__event")
+    )
+
+    filterset_fields = {
+        "status":                   ["exact", "in"],
+        "from_date":                ["exact", "gte", "lte"],
+        "to_date":                  ["exact", "gte", "lte"],
+        "registration":             ["exact"],
+        "registration__event":      ["exact"],
+        "registration__status":     ["exact"],
+    }
+
+    search_fields = [
+        "hotel_name",
+        "address",
+        "room_no",
+        "registration__user__email",
+        "registration__user__first_name",
+        "registration__user__last_name",
+        "registration__event__title",
+    ]
+
+    ordering_fields = [
+        "from_date",
+        "to_date",
+        "status",
+        "hotel_name",
+        "created_at",
+        "updated_at",
+    ]
+    ordering = ["-created_at"]
+    # ---------------------------------
+
+    def get_permissions(self):
+        if self.action in ["bulk_update_status"]:
+            return [IsModerator()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.action == "list":
+            return queryset.filter(registration__user=self.request.user)
+        return queryset
+
+    @action(detail=False, methods=["patch"], url_path="bulk-status", permission_classes=[IsModerator])
+    def bulk_update_status(self, request):
+        serializer = BulkStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        updated = (
+            self.get_queryset()
+            .filter(id__in=serializer.validated_data["ids"])
+            .update(status=serializer.validated_data["status"], updated_at=timezone.now())
+        )
+        return Response({"message": f"{updated} records updated.", "updated_count": updated})
