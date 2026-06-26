@@ -14,7 +14,6 @@ from .models import (
 from .serializers import (
     RegistrationSerializer,
     BulkStatusUpdateSerializer,
-    LobbyRegistrationSerializer,
     TravelAssistanceSerializer,
     MedicalAssistanceSerializer,
     TranslationAssistanceSerializer,
