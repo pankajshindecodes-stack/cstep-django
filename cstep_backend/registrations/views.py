@@ -125,7 +125,7 @@ class TravelAssistanceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
       
-        if self.request.role == UserRole.BASE_USER and self.action == "list":
+        if self.request.user.role == UserRole.BASE_USER and self.action == "list":
             return queryset.filter(registration__user=self.request.user)
         return queryset
 
