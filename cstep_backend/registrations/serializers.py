@@ -17,7 +17,9 @@ class AssistanceBaseSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(write_only=True, required=False)
     event_name = serializers.CharField(source="registration.event.title", read_only=True)
     user_name = serializers.CharField(source="registration.user.full_name", read_only=True)
-    
+    user_phone = serializers.CharField(source="registration.user.phone_number", read_only=True)
+    user_email = serializers.CharField(source="registration.user.email", read_only=True)
+
     def validate(self, attrs):
         request = self.context.get("request")
         model = self.Meta.model
@@ -53,6 +55,7 @@ class AccommodationAssistanceSerializer(AssistanceBaseSerializer):
         fields = [
             "id", "event_id", "user_id",
             "event_name", "user_name",
+            "user_email", "user_phone",
             "hotel_name", "address", "room_no",
             "from_date", "to_date", "status",
         ]
@@ -64,6 +67,7 @@ class TravelAssistanceSerializer(AssistanceBaseSerializer):
         fields = [
             "id", "event_id", "user_id",
             "event_name","user_name",
+            "user_email", "user_phone",
             "transport_mode", "source_location",
             "destination_location", "travel_date",
             "status"
@@ -76,6 +80,7 @@ class MedicalAssistanceSerializer(AssistanceBaseSerializer):
         fields = [
             "id", "event_id", "user_id",
             "event_name", "user_name",
+            "user_email", "user_phone",
             "medical_needs", "date", "status",
         ]
         read_only_fields = ["id", "status", "created_at", "updated_at"]
@@ -86,6 +91,7 @@ class TranslationAssistanceSerializer(AssistanceBaseSerializer):
         fields = [
             "id", "event_id", "user_id",
             "event_name", "user_name",
+            "user_email", "user_phone",
             "language", "date", "status",
         ]
         read_only_fields = ["id", "status", "created_at", "updated_at"]
@@ -96,6 +102,8 @@ class RegistrationSerializer(serializers.ModelSerializer):
         default=serializers.CurrentUserDefault()
     )
     user_name = serializers.CharField(source="user.full_name", read_only=True)
+    phone_number = serializers.CharField(source="user.phone_number", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
     participation_dates = serializers.ListField(child=serializers.DateField(),write_only=True)
     travel_assistance = TravelAssistanceSerializer(many=True, read_only=True)
     medical_assistance = MedicalAssistanceSerializer(read_only=True)
@@ -168,32 +176,3 @@ class RegistrationSerializer(serializers.ModelSerializer):
 class BulkStatusUpdateSerializer(serializers.Serializer):
     ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
     status = serializers.CharField()
-
-class LobbyRegistrationSerializer(serializers.ModelSerializer):
-    user_name = serializers.CharField(source="user.full_name", read_only=True)
-    phone_number = serializers.CharField(source="user.phone_number", read_only=True)
-    email = serializers.EmailField(source="user.email", read_only=True)
-    participation_dates = serializers.ListField(child=serializers.DateField(),write_only=True)
-    travel_assistance = TravelAssistanceSerializer(many=True, read_only=True)
-    medical_assistance = MedicalAssistanceSerializer(read_only=True)
-    translation_assistance = TranslationAssistanceSerializer(read_only=True)
-    accommodation_assistance = AccommodationAssistanceSerializer(read_only=True)
-    
-    class Meta:
-        model = Registration
-        fields = [
-            "id",
-            "user_id",
-            "user_name",
-            "phone_number",
-            "email",
-            "participation_dates",
-            "participation_time",
-            "attendance_mode",
-            "food_preference",
-            "travel_assistance",
-            "medical_assistance",
-            "translation_assistance",
-            "accommodation_assistance",
-            "status",
-        ]

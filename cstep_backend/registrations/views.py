@@ -61,8 +61,6 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "bulk_update_status":
             return BulkStatusUpdateSerializer
-        if self.action in ["registered", "proposed"]:
-            return LobbyRegistrationSerializer
         return RegistrationSerializer
 
     def get_permissions(self):
