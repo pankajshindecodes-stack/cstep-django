@@ -116,6 +116,8 @@ class RegistrationSerializer(serializers.ModelSerializer):
             "id",
             "user",
             "user_name",
+            "phone_number",
+            "email",
             "event",
             "participation_dates",
             "participation_time",
